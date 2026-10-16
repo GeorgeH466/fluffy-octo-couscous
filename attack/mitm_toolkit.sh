@@ -128,7 +128,8 @@ while (( $# )); do
         --duration)       shift; DURATION="${1:-0}" ;;
         --no-forward)     KEEP_RUNNING=0 ;;
         --yes|-y)         export CDECK_ASSUME_YES=1 ;;
-        *)                cdeck::warn "ignoring unknown argument: $1" ;;
+        -*)               cdeck::error "unknown option: $1"; usage; exit 2 ;;
+        *)                cdeck::warn "ignoring non-option argument: $1" ;;
     esac
     shift
 done

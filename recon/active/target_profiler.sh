@@ -91,7 +91,12 @@ while (( $# )); do
         -o|--output)        shift; OUTPUT_DIR="${1:-}" ;;
         --yes|-y)           export CDECK_ASSUME_YES=1 ;;
         quick|standard|deep) DEPTH="$1" ;;
-        *)                  if [[ -z "${TARGET}" ]]; then TARGET="$1"; fi ;;
+        -*)                 cdeck::error "unknown option: $1"; usage; exit 2 ;;
+        *)                  if [[ -z "${TARGET}" ]]; then
+                                TARGET="$1"
+                            else
+                                cdeck::warn "ignoring extra argument: $1"
+                            fi ;;
     esac
     shift
 done

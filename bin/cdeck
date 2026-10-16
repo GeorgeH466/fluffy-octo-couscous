@@ -176,7 +176,248 @@ need_root() {
 # --------------------------------------------------------------------------- #
 # status
 # --------------------------------------------------------------------------- #
+status_usage() {
+    cdeck::usage_header \
+        "Show what the deck is: installation, hardware, services, posture" \
+        "cdeck status [--oneline] [--json] [--no-colour]" \
+        "cdeck status              # the full report" \
+        "cdeck status --oneline    # one line, for prompts and tmux popups" \
+        "cdeck status --json       # machine-readable summary for scripts"
+    cat <<EOF
+
+${C_BOLD}OPTIONS${C_RESET}
+  -o, --oneline     a single summary line and nothing else
+  -j, --json        machine-readable report (implies --quiet)
+  -q, --quiet       full report without the progress notes
+  --no-colour       disable ANSI colour
+  -h, --help        this help
+  -V, --version     version
+
+${C_BOLD}EXIT CODE${C_RESET}
+  0 always: status reporting never fails a pipeline.
+EOF
+}
+
+status_oneline() {
+    # A prompt- and popup-friendly summary. Every field tolerates absence.
+    local iface address wifi services vpn alerts theme line=()
+    iface="$(cdeck::default_iface)"
+    address=""
+    [[ -n "${iface}" ]] && address="$(ip -o -4 addr show dev "${iface}" 2>/dev/null | awk '{print $4; exit}')"
+    wifi="$(cdeck::wlan_interfaces | head -1)"
+    services="$(status_service_count)"
+    if pgrep -x tor >/dev/null 2>&1; then
+        vpn="tor"
+    elif cdeck::wireguard_up; then
+        vpn="wg"
+    elif pgrep -x openvpn >/dev/null 2>&1; then
+        vpn="openvpn"
+    else
+        vpn="off"
+    fi
+    alerts="$(status_alert_count)"
+    theme="$(cdeck::conf_get display.theme cyberpunk)"
+    line+=("$(hostname)")
+    [[ -n "${address}" ]] && line+=("${iface} ${address}") || line+=("no link")
+    [[ -n "${wifi}" ]] && line+=("wifi ${wifi}")
+    line+=("svc ${services}" "vpn ${vpn}" "alerts ${alerts}" "theme ${theme}")
+    local joined="${line[0]}"
+    local part
+    for part in "${line[@]:1}"; do joined+=" · ${part}"; done
+    printf '%s\n' "${joined}"
+}
+
+status_service_count() {
+    # "<active>/<installed>" for the deck's own units
+    local unit active=0 installed=0
+    command -v systemctl >/dev/null 2>&1 || { printf 'n/a'; return 0; }
+    for unit in cyberdeck-monitor.service probe-logger.service ble-scanner.service \
+                rogue-ap-detector.service usb-watcher.service mac-rotator.timer; do
+        systemctl list-unit-files "${unit}" >/dev/null 2>&1 || continue
+        systemctl list-unit-files "${unit}" 2>/dev/null | grep -q "^${unit}" || continue
+        installed=$(( installed + 1 ))
+        [[ "$(systemctl is-active "${unit}" 2>/dev/null)" == "active" ]] && active=$(( active + 1 ))
+    done
+    printf '%s/%s' "${active}" "${installed}"
+}
+
+status_alert_count() {
+    # Alerts recorded in the last 24 hours, or 0 when the database is absent
+    local db="${INSTALL_DIR}/data/alerts.db"
+    if [[ -f "${db}" ]] && cdeck::has_cmd sqlite3; then
+        sqlite3 "${db}" "SELECT COUNT(*) FROM alerts WHERE ts >= datetime('now','-1 day');" 2>/dev/null || printf '0'
+    else
+        printf '0'
+    fi
+}
+
+status_json() {
+    # Everything the report shows, as JSON. Built with cyberlib where possible
+    # so the values match what the Python tools see.
+    PYTHONPATH="${LIB_DIR}" "${CDECK_PYTHON}" - "${INSTALL_DIR}" "${CDECK_CONFIG}" \
+        "${CDECK_VERSION}" <<'PYEOF'
+import json
+import os
+import platform
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+install_dir, config_path, version = sys.argv[1], sys.argv[2], sys.argv[3]
+report = {
+    "version": version,
+    "install_dir": install_dir,
+    "config": config_path,
+    "config_exists": Path(config_path).is_file(),
+    "host": socket.gethostname(),
+    "platform": platform.platform(),
+    "architecture": platform.machine(),
+    "kernel": platform.release(),
+    "interfaces": [],
+    "hardware": [],
+    "services": [],
+    "network": {},
+    "vitals": {},
+    "databases": {},
+    "theme": "cyberpunk",
+    "alerts_24h": 0,
+}
+
+try:
+    from cyberlib import Config, Hardware
+except ImportError:
+    Config = Hardware = None                                    # type: ignore
+
+config = Config(config_path).load(config_path) if Config else None
+if config:
+    report["theme"] = config.get("display.theme", "cyberpunk")
+    report["operator"] = config.get("general.operator_name", "")
+    report["authorised_use_acknowledged"] = bool(
+        config.get("general.authorised_use_acknowledged", False))
+    report["log_level"] = config.get("general.log_level", "INFO")
+
+# Interfaces
+try:
+    output = subprocess.run(["ip", "-o", "link", "show"], capture_output=True,
+                            text=True, timeout=5).stdout
+except (OSError, subprocess.SubprocessError):
+    output = ""
+for line in output.splitlines():
+    parts = line.split(": ")
+    if len(parts) < 2:
+        continue
+    name = parts[1].split("@")[0]
+    if name == "lo":
+        continue
+    state = "unknown"
+    mac = ""
+    if "state " in line:
+        state = line.split("state ", 1)[1].split()[0]
+    try:
+        mac = Path(f"/sys/class/net/{name}/address").read_text().strip()
+    except OSError:
+        pass
+    try:
+        addressing = subprocess.run(["ip", "-o", "-4", "addr", "show", "dev", name],
+                                    capture_output=True, text=True, timeout=5).stdout.split()
+        address = addressing[3] if len(addressing) > 3 else ""
+    except (OSError, subprocess.SubprocessError):
+        address = ""
+    wireless = Path(f"/sys/class/net/{name}/wireless").exists()
+    report["interfaces"].append({
+        "name": name, "state": state, "mac": mac, "address": address,
+        "type": "wireless" if wireless else "ethernet",
+    })
+
+if Hardware:
+    for component, state, detail in Hardware.summary():
+        report["hardware"].append({"component": component, "status": state, "detail": detail})
+    report["vitals"] = {key: value for key, value in Hardware.vitals().items()}
+
+# Services
+units = ["cyberdeck-monitor.service", "probe-logger.service", "ble-scanner.service",
+         "rogue-ap-detector.service", "usb-watcher.service", "mac-rotator.timer"]
+if shutil.which("systemctl") and Path("/run/systemd/system").is_dir():
+    for unit in units:
+        files = subprocess.run(["systemctl", "list-unit-files", unit],
+                               capture_output=True, text=True).stdout
+        installed = unit in files
+        active = ""
+        if installed:
+            active = subprocess.run(["systemctl", "is-active", unit],
+                                    capture_output=True, text=True).stdout.strip()
+        report["services"].append({"unit": unit, "installed": installed, "state": active})
+
+# Network posture
+report["network"] = {
+    "default_interface": "",
+    "internet": False,
+    "tor": bool(subprocess.run(["pgrep", "-x", "tor"], capture_output=True).returncode == 0),
+    "wireguard": False,
+    "openvpn": bool(subprocess.run(["pgrep", "-x", "openvpn"], capture_output=True).returncode == 0),
+}
+try:
+    routing = subprocess.run(["ip", "route", "show", "default"], capture_output=True,
+                             text=True, timeout=5).stdout.split()
+    report["network"]["default_interface"] = routing[routing.index("dev") + 1] if "dev" in routing else ""
+except (OSError, subprocess.SubprocessError, ValueError):
+    pass
+try:
+    subprocess.run(["ping", "-c", "1", "-W", "1", "1.1.1.1"], capture_output=True, timeout=3)
+    report["network"]["internet"] = True
+except (OSError, subprocess.SubprocessError):
+    pass
+try:
+    report["network"]["wireguard"] = "wireguard" in subprocess.run(
+        ["ip", "link", "show"], capture_output=True, text=True, timeout=5).stdout
+except (OSError, subprocess.SubprocessError):
+    pass
+
+# Databases and alerts
+data_dir = Path(install_dir) / "data"
+for name in ("events", "alerts", "probes", "ble", "arp", "services", "usb", "payloads", "baseline"):
+    path = data_dir / f"{name}.db"
+    if path.is_file():
+        report["databases"][name] = {"exists": True, "bytes": path.stat().st_size}
+    else:
+        report["databases"][name] = {"exists": False, "bytes": 0}
+if shutil.which("sqlite3") and (data_dir / "alerts.db").is_file():
+    try:
+        report["alerts_24h"] = int(subprocess.run(
+            ["sqlite3", str(data_dir / "alerts.db"),
+             "SELECT COUNT(*) FROM alerts WHERE ts >= datetime('now','-1 day');"],
+            capture_output=True, text=True, timeout=5).stdout.strip() or 0)
+    except (ValueError, OSError, subprocess.SubprocessError):
+        pass
+
+report["generated"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+print(json.dumps(report, indent=2, default=str))
+PYEOF
+}
+
 cmd_status() {
+    local mode="full" quiet=0
+    while (( $# )); do
+        case "$1" in
+            --help|-h)          status_usage; return 0 ;;
+            -V|--version)       printf 'cyberdeck-arsenal %s\n' "${CDECK_VERSION}"; return 0 ;;
+            -o|--oneline|--short) mode="oneline" ;;
+            -j|--json)          mode="json" ;;
+            -q|--quiet)         quiet=1 ;;
+            --no-colour|--no-color) cdeck::no_colour ;;
+            *)                  cdeck::error "unknown option: $1"; status_usage; return 2 ;;
+        esac
+        shift
+    done
+
+    case "${mode}" in
+        oneline) status_oneline; return 0 ;;
+        json)    status_json; return 0 ;;
+    esac
+
     cdeck::banner "cyberdeck-arsenal status" "v${CDECK_VERSION} - $(date '+%Y-%m-%d %H:%M:%S')"
 
     # Installation
@@ -232,7 +473,14 @@ PYEOF
 
     # Vitals
     printf '\n%bSystem%b\n' "${C_BOLD}" "${C_RESET}"
-    printf '  %b•%b board            %s\n' "${C_CYAN}" "${C_RESET}" "$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "$(uname -m)")"
+    local board_model
+    board_model="$(uname -m)"
+    if [[ -r /proc/device-tree/model ]]; then
+        board_model="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || printf '%s' "${board_model}")"
+    elif [[ -r /sys/class/dmi/id/product_name ]]; then
+        board_model="$(head -1 /sys/class/dmi/id/product_name 2>/dev/null || printf '%s' "${board_model}")"
+    fi
+    printf '  %b•%b board            %s\n' "${C_CYAN}" "${C_RESET}" "${board_model}"
     printf '  %b•%b kernel           %s\n' "${C_CYAN}" "${C_RESET}" "$(uname -r)"
     printf '  %b•%b uptime           %s\n' "${C_CYAN}" "${C_RESET}" "$(uptime -p 2>/dev/null || uptime)"
     printf '  %b•%b load             %s\n' "${C_CYAN}" "${C_RESET}" "$(cut -d' ' -f1-3 /proc/loadavg)"
@@ -274,8 +522,8 @@ PYEOF
     else
         printf '  %b·%b tor              not running\n' "${C_DIM}" "${C_RESET}"
     fi
-    if ip link show type wireguard >/dev/null 2>&1; then
-        printf '  %b✔%b wireguard        %s\n' "${C_GREEN}" "${C_RESET}" "$(ip link show type wireguard 2>/dev/null | awk -F': ' '/^[0-9]/ {print $2}' | tr '\n' ' ')"
+    if cdeck::wireguard_up; then
+        printf '  %b✔%b wireguard        %s\n' "${C_GREEN}" "${C_RESET}" "$(cdeck::wireguard_interfaces | tr '\n' ' ')"
     else
         printf '  %b·%b wireguard        no tunnel\n' "${C_DIM}" "${C_RESET}"
     fi
@@ -508,7 +756,7 @@ main() {
     case "${command}" in
         # -- core ------------------------------------------------------------
         dashboard|hud|deck|"")   run_python "dashboard/main_hud.py" "$@" ;;
-        status|st)               cmd_status ;;
+        status|st)               cmd_status "$@" ;;
         config|conf)             cmd_config "$@" ;;
         update)                  cmd_update "$@" ;;
         doctor)                  cmd_doctor ;;

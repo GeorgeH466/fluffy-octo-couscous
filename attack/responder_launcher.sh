@@ -124,7 +124,8 @@ while (( $# )); do
         --status)         MODE="status" ;;
         --yes|-y)         export CDECK_ASSUME_YES=1 ;;
         analyse|status|run|relay) MODE="$1" ;;
-        *)                cdeck::warn "ignoring unknown argument: $1" ;;
+        -*)               cdeck::error "unknown option: $1"; usage; exit 2 ;;
+        *)                cdeck::warn "ignoring non-option argument: $1" ;;
     esac
     shift
 done
