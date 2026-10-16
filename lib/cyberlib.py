@@ -246,15 +246,22 @@ class Logger:
         self._emit("WARNING", message, C.BRIGHT_MAGENTA + C.BOLD, "⚠")
 
     def banner(self, title: str, subtitle: str = "") -> None:
-        """Print a framed banner."""
+        """Print a framed banner whose borders line up with its contents.
+
+        The content sits between the two vertical rules with two leading spaces,
+        so each line is padded to ``width`` characters exactly.
+        """
         width = max(len(title), len(subtitle)) + 4
         line = "═" * width
+
+        def body(text: str, styled: str) -> str:
+            padding = " " * max(0, width - len(text) - 2)
+            return C.wrap("║", C.CYAN) + f"  {styled}{padding}" + C.wrap("║", C.CYAN)
+
         print(C.wrap(f"╔{line}╗", C.CYAN))
-        print(C.wrap("║", C.CYAN) + f"  {C.wrap(title, C.BOLD)}" + " " * (width - len(title) - 1)
-              + C.wrap("║", C.CYAN))
+        print(body(title, C.wrap(title, C.BOLD)))
         if subtitle:
-            print(C.wrap("║", C.CYAN) + f"  {C.wrap(subtitle, C.DIM)}"
-                  + " " * (width - len(subtitle) - 1) + C.wrap("║", C.CYAN))
+            print(body(subtitle, C.wrap(subtitle, C.DIM)))
         print(C.wrap(f"╚{line}╝", C.CYAN))
 
     def tail(self, path: Path, lines: int = 10) -> List[str]:
@@ -968,9 +975,51 @@ class Hardware:
                 data["uptime_seconds"] = float(Path("/proc/uptime").read_text().split()[0])
             except (OSError, ValueError):
                 pass
+        if data["disk_percent"] is None:
+            # psutil is optional: fall back to the standard library
+            try:
+                usage = shutil.disk_usage("/")
+                if usage.total:
+                    data["disk_percent"] = round(100 * usage.used / usage.total, 1)
+            except OSError:
+                pass
+        if data["cpu_percent"] is None:
+            data["cpu_percent"] = Hardware._cpu_percent_from_proc()
         data["temperature"] = Hardware.temperature()
         data["battery"] = Hardware.battery()
         return data
+
+    @staticmethod
+    def _cpu_percent_from_proc(sample_s: float = 0.15) -> Optional[float]:
+        """Estimate CPU usage from ``/proc/stat`` without psutil.
+
+        Reads the aggregate ``cpu`` line, waits ``sample_s``, reads it again and
+        returns the busy fraction. Returns ``None`` where ``/proc/stat`` is not
+        available (non-Linux hosts).
+        """
+        def snapshot() -> Optional[Tuple[int, int]]:
+            try:
+                fields = Path("/proc/stat").read_text().splitlines()[0].split()
+            except (OSError, IndexError):
+                return None
+            if not fields or fields[0] != "cpu" or len(fields) < 5:
+                return None
+            values = [int(value) for value in fields[1:]]
+            idle = values[3] + (values[4] if len(values) > 4 else 0)
+            return sum(values), idle
+
+        first = snapshot()
+        if first is None:
+            return None
+        time.sleep(sample_s)
+        second = snapshot()
+        if second is None:
+            return None
+        total_delta = second[0] - first[0]
+        idle_delta = second[1] - first[1]
+        if total_delta <= 0:
+            return None
+        return round(100 * (total_delta - idle_delta) / total_delta, 1)
 
     @staticmethod
     def summary() -> List[Tuple[str, str, str]]:

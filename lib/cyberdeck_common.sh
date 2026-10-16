@@ -35,6 +35,7 @@ set -o pipefail
 CDECK_VERSION="1.0.0"
 CDECK_INSTALL_DIR="${CYBERDECK_INSTALL_DIR:-/opt/cyberdeck-arsenal}"
 CDECK_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CDECK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CDECK_CONFIG="${CYBERDECK_CONF:-${CDECK_INSTALL_DIR}/cyberdeck.conf}"
 CDECK_LOG_DIR="${CDECK_INSTALL_DIR}/logs"
 CDECK_DATA_DIR="${CDECK_INSTALL_DIR}/data"
@@ -53,6 +54,17 @@ else
     C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_MAGENTA=""; C_CYAN=""
     C_BOLD=""; C_DIM=""; C_RESET=""
 fi
+
+cdeck::no_colour() {
+    # Blank every colour code for this process (used by --no-colour)
+    C_RED=""; C_GREEN=""; C_YELLOW=""; C_BLUE=""; C_MAGENTA=""; C_CYAN=""
+    C_BOLD=""; C_DIM=""; C_RESET=""
+}
+
+cdeck::interactive() {
+    # True when both stdin and stdout are terminals
+    [[ -t 0 && -t 1 ]]
+}
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -136,9 +148,10 @@ cdeck::banner() {
     local bar
     bar="$(printf '═%.0s' $(seq 1 "${width}"))"
     printf '%b╔%s╗%b\n' "${C_CYAN}" "${bar}" "${C_RESET}"
-    printf '%b║%b  %b%-*s%b%b║%b\n' "${C_CYAN}" "${C_RESET}" "${C_BOLD}" "${width}" "${title}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
+    local inner=$(( width - 2 ))
+    printf '%b║%b  %b%-*s%b%b║%b\n' "${C_CYAN}" "${C_RESET}" "${C_BOLD}" "${inner}" "${title}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
     if [[ -n "${subtitle}" ]]; then
-        printf '%b║%b  %b%-*s%b%b║%b\n' "${C_CYAN}" "${C_RESET}" "${C_DIM}" "${width}" "${subtitle}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
+        printf '%b║%b  %b%-*s%b%b║%b\n' "${C_CYAN}" "${C_RESET}" "${C_DIM}" "${inner}" "${subtitle}" "${C_RESET}" "${C_CYAN}" "${C_RESET}"
     fi
     printf '%b╚%s╝%b\n' "${C_CYAN}" "${bar}" "${C_RESET}"
 }
@@ -163,12 +176,51 @@ cdeck::conf_get() {
         value="$(python3 - "${CDECK_CONFIG}" "${key}" "${default}" <<'PYEOF' 2>/dev/null
 import sys
 path, dotted, default = sys.argv[1], sys.argv[2], sys.argv[3]
-try:
-    import yaml
-    with open(path) as fh:
-        data = yaml.safe_load(fh) or {}
-except Exception:
-    data = {}
+
+
+def load(path):
+    """Parse the configuration with PyYAML, falling back to a tiny reader.
+
+    The fallback understands the shipped layout (top-level ``section:`` blocks
+    and two-space-indented ``key: value`` pairs), so the deck keeps honouring
+    its configuration even where python-yaml is not installed.
+    """
+    try:
+        import yaml
+        with open(path) as fh:
+            return yaml.safe_load(fh) or {}
+    except Exception:
+        pass
+    data, section = {}, None
+    try:
+        handle = open(path)
+    except OSError:
+        return {}
+    with handle:
+        for raw in handle:
+            line = raw.split("#", 1)[0].rstrip()
+            if not line.strip():
+                continue
+            if not line[0].isspace() and line.rstrip().endswith(":"):
+                section = line.strip()[:-1].strip()
+                data.setdefault(section, {})
+                continue
+            if line[0].isspace() and ":" in line and section:
+                leaf, _, value = line.strip().partition(":")
+                value = value.strip()
+                if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
+                    value = value[1:-1]
+                elif value.lower() in ("true", "false"):
+                    value = value.lower() == "true"
+                elif value.replace(".", "", 1).isdigit():
+                    value = float(value) if "." in value else int(value)
+                elif value.startswith("[") and value.endswith("]"):
+                    value = [item.strip().strip("\"'") for item in value[1:-1].split(",") if item.strip()]
+                data[section][leaf.strip()] = value
+    return data
+
+
+data = load(path)
 node = data
 for part in dotted.split('.'):
     if isinstance(node, dict) and part in node:
@@ -198,36 +250,56 @@ PYEOF
 }
 
 cdeck::conf_set() {
-    # cdeck::conf_set <section.key> <value>  (requires python3 + PyYAML)
+    # cdeck::conf_set <section.key> <value>
+    #
+    # Writes through cyberlib.Config so the heavily commented configuration is
+    # edited line by line: comments, blank lines and ordering all survive. Only
+    # a key that cannot be found in the file triggers a whole-document rewrite.
     local key="$1" value="$2"
     [[ -f "${CDECK_CONFIG}" ]] || { cdeck::warn "no config file to update: ${CDECK_CONFIG}"; return 1; }
-    python3 - "${CDECK_CONFIG}" "${key}" "${value}" <<'PYEOF'
+    local output status
+    output="$(CDECK_CONFIG="${CDECK_CONFIG}" python3 - "${CDECK_CONFIG}" "${key}" "${value}" \
+        "${CDECK_LIB_DIR}" <<'PYEOF' 2>&1
+import os
 import sys
-path, dotted, value = sys.argv[1], sys.argv[2], sys.argv[3]
+
+path, dotted, value, lib_dir = sys.argv[1], sys.argv[2], sys.argv[3], (sys.argv[4] if len(sys.argv) > 4 else "")
+for candidate in (lib_dir, os.path.join(os.path.dirname(os.path.abspath(path)), "lib"),
+                  "/opt/cyberdeck-arsenal/lib"):
+    if candidate and os.path.isdir(candidate) and candidate not in sys.path:
+        sys.path.insert(0, candidate)
 try:
-    import yaml
-except ImportError:
-    print("PyYAML required for config writes", file=sys.stderr); sys.exit(1)
-with open(path) as fh:
-    data = yaml.safe_load(fh) or {}
-node = data
-parts = dotted.split('.')
-for part in parts[:-1]:
-    node = node.setdefault(part, {})
+    from cyberlib import Config
+except ImportError as exc:                                    # pragma: no cover
+    print(f"cyberlib is required for configuration writes: {exc}", file=sys.stderr)
+    sys.exit(1)
+
 low = value.lower()
-if low in ('true', 'false'):
-    parsed = low == 'true'
-elif value.replace('.', '', 1).isdigit():
-    parsed = float(value) if '.' in value else int(value)
-elif value.startswith('[') and value.endswith(']'):
-    parsed = [v.strip() for v in value[1:-1].split(',') if v.strip()]
+if low in ("true", "false"):
+    parsed = low == "true"
+elif value.lstrip("-").replace(".", "", 1).isdigit():
+    parsed = float(value) if "." in value else int(value)
+elif value.startswith("[") and value.endswith("]"):
+    parsed = [item.strip() for item in value[1:-1].split(",") if item.strip()]
+elif value == "":
+    parsed = ""
 else:
     parsed = value
-node[parts[-1]] = parsed
-with open(path, 'w') as fh:
-    yaml.safe_dump(data, fh, sort_keys=False, default_flow_style=False)
+
+os.environ["CYBERDECK_CONF"] = path
+config = Config(path).load(path)
+config.set(dotted, parsed)
+config.save(path)
+print(dotted)
 PYEOF
-    [[ $? -eq 0 ]] && cdeck::ok "config ${key} set to '${value}'"
+)"
+    status=$?
+    if (( status == 0 )); then
+        cdeck::ok "config ${key} set to '${value}'"
+    else
+        cdeck::error "could not update ${key}: ${output##*$'\n'}"
+        return 1
+    fi
 }
 
 cdeck::conf_list() {
@@ -366,8 +438,73 @@ cdeck::monitor_capable_interfaces() {
     done
 }
 
+cdeck::wireguard_interfaces() {
+    # Names of live WireGuard interfaces. `ip link show type wireguard` reports
+    # success with empty output on some iproute2 builds, so the link detail is
+    # checked explicitly (and the configured name is honoured first).
+    local configured iface
+    configured="$(cdeck::conf_get network.wireguard_interface '')"
+    if [[ -n "${configured}" && -e "/sys/class/net/${configured}" ]]; then
+        printf '%s\n' "${configured}"
+    fi
+    for iface in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | cut -d@ -f1); do
+        [[ "${iface}" == "${configured}" ]] && continue
+        [[ "${iface}" == "lo" ]] && continue
+        if ip -d link show dev "${iface}" 2>/dev/null | grep -qi 'wireguard'; then
+            printf '%s\n' "${iface}"
+        fi
+    done
+    return 0
+}
+
+cdeck::wireguard_up() {
+    # True when at least one WireGuard interface exists
+    [[ -n "$(cdeck::wireguard_interfaces)" ]]
+}
+
 cdeck::default_iface() {
-    ip route show default 2>/dev/null | awk '/default/ {print $5; exit}'
+    # The interface carrying the default route, or - when there is no default
+    # route (isolated lab, statically addressed deck) - the first interface that
+    # holds a globally routable address.
+    local iface
+    iface="$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')"
+    if [[ -z "${iface}" ]]; then
+        iface="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2; exit}')"
+    fi
+    if [[ -z "${iface}" ]]; then
+        iface="$(cdeck::interfaces | head -1)"
+    fi
+    [[ -n "${iface}" ]] && printf '%s\n' "${iface}"
+    return 0
+}
+
+cdeck::primary_interface() {
+    # Configured primary interface, falling back to whatever is really in use
+    local configured
+    configured="$(cdeck::conf_get network.primary_interface '')"
+    if [[ -n "${configured}" && -e "/sys/class/net/${configured}" ]]; then
+        printf '%s\n' "${configured}"
+        return 0
+    fi
+    cdeck::default_iface
+}
+
+cdeck::monitor_interface() {
+    # Configured monitor interface when it exists, otherwise the first radio
+    # that looks usable. Prints nothing when the deck has no wireless hardware.
+    local configured
+    configured="$(cdeck::conf_get network.monitor_interface '')"
+    if [[ -n "${configured}" && -e "/sys/class/net/${configured}" ]]; then
+        printf '%s\n' "${configured}"
+        return 0
+    fi
+    local candidate
+    for candidate in $(cdeck::wlan_interfaces); do
+        [[ -d "/sys/class/net/${candidate}/wireless" ]] || continue
+        printf '%s\n' "${candidate}"
+        return 0
+    done
+    return 1
 }
 
 cdeck::iface_mac() { cat "/sys/class/net/${1}/address" 2>/dev/null || echo "unknown"; }

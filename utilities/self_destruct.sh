@@ -461,7 +461,17 @@ do_paranoid() {
 # Main
 # --------------------------------------------------------------------------- #
 main() {
-    cdeck::require_root "self-destruct" || exit 1
+    # A dry run is a rehearsal: it changes nothing, so it does not need root.
+    # Everything else does, because it stops services, shreds files and
+    # re-addresses interfaces.
+    if [[ "${EUID}" -ne 0 ]]; then
+        if (( DRY_RUN )); then
+            cdeck::warn "not running as root: this is a preview of the plan only"
+            cdeck::info "for the real thing run: sudo $0 --${LEVEL}"
+        else
+            cdeck::require_root "self-destruct" || exit 1
+        fi
+    fi
     cdeck::require_acknowledgement || exit 1
     guard_install_dir || exit 1
 

@@ -97,6 +97,15 @@ while (( $# )); do
         --timing)       shift; CDECK_TIMING="${1:-T4}" ;;
         stealth|aggressive|vuln|udp|full|discovery|custom)
             if [[ -z "${PRESET}" ]]; then PRESET="$1"; else EXTRA_ARGS+=("$1"); fi ;;
+        --)
+            # Everything after -- is passed through to nmap untouched
+            shift
+            while (( $# )); do EXTRA_ARGS+=("$1"); shift; done
+            break ;;
+        -*)
+            cdeck::error "unknown option: $1"
+            usage
+            exit 2 ;;
         *)
             if [[ -z "${TARGET}" && "${PRESET}" != "custom" ]]; then TARGET="$1"
             else EXTRA_ARGS+=("$1"); fi ;;

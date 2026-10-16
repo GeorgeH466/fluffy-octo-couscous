@@ -31,6 +31,13 @@ CDECK_VENV="${CDECK_INSTALL_DIR}/venv"
 CDECK_PY="${CDECK_VENV}/bin/python3"
 [[ -x "${CDECK_PY}" ]] || CDECK_PY="$(command -v python3 || echo python3)"
 
+# The aliases below all call `cdeck`. setup.sh links it into /usr/local/bin, and
+# config/bashrc_cyberdeck puts ${CDECK_INSTALL_DIR}/bin on PATH - this fallback
+# covers the case where only this file has been sourced.
+if ! command -v cdeck >/dev/null 2>&1 && [[ -x "${CDECK_INSTALL_DIR}/bin/cdeck" ]]; then
+    cdeck() { "${CDECK_INSTALL_DIR}/bin/cdeck" "$@"; }
+fi
+
 # --------------------------------------------------------------------------- #
 # Short names for the launcher
 # --------------------------------------------------------------------------- #

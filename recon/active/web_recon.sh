@@ -87,7 +87,12 @@ while (( $# )); do
         -o|--output)        shift; OUTPUT_DIR="${1:-}" ;;
         -u|--url)           shift; EXTRA_URLS+=("${1:-}") ;;
         --yes|-y)           export CDECK_ASSUME_YES=1 ;;
-        *)                  [[ -z "${TARGET}" ]] && TARGET="$1" ;;
+        -*)                 cdeck::error "unknown option: $1"; usage; exit 2 ;;
+        *)                  if [[ -z "${TARGET}" ]]; then
+                                TARGET="$1"
+                            else
+                                cdeck::warn "ignoring extra argument: $1"
+                            fi ;;
     esac
     shift
 done
