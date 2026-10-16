@@ -1,0 +1,49 @@
+# =============================================================================
+# stealth.theme - low-observation skin for field work
+# =============================================================================
+# Consumed by aesthetic/theme_switcher.sh. Designed for a deck that is running
+# in a client's office: muted greys, no bright green, no ASCII art on login, and
+# screen-dimming friendly contrast. Every value here is deliberately quiet.
+# =============================================================================
+
+THEME_NAME=stealth
+THEME_TITLE=Stealth
+THEME_DESCRIPTION=Low-observation greys: nothing on screen that draws an eye
+
+# -- palette ------------------------------------------------------------------
+THEME_PRIMARY=#8fa3ad
+THEME_SECONDARY=#6f8f9a
+THEME_ACCENT=#a8b8c0
+THEME_WARNING=#c9a227
+THEME_ERROR=#a8493f
+THEME_OK=#6f9a7a
+THEME_DIM=#4b5a61
+THEME_BACKGROUND=#14181b
+THEME_FOREGROUND=#c0c8cc
+THEME_PROMPT_HOST=#8fa3ad
+THEME_PROMPT_PATH=#6f8f9a
+
+# -- terminal -----------------------------------------------------------------
+THEME_TERM_BG=#14181b
+THEME_TERM_FG=#c0c8cc
+THEME_CURSOR=#8fa3ad
+THEME_TMUX_STATUS_BG=#14181b
+THEME_TMUX_STATUS_FG=#8fa3ad
+THEME_TMUX_ACTIVE_BG=#3a464c
+THEME_TMUX_ACTIVE_FG=#e4e8ea
+
+# -- conky --------------------------------------------------------------------
+THEME_CONKY_COLOUR=8fa3ad
+THEME_CONKY_WARN_COLOUR=c9a227
+THEME_CONKY_CRIT_COLOUR=a8493f
+
+# -- MOTD ---------------------------------------------------------------------
+THEME_MOTD_TAGLINE="quiet mode: services are running, nothing is announcing itself"
+THEME_MOTD_BANNER=""
+THEME_SPLASH_ART=""
+THEME_SPLASH_TAGLINE=""
+
+# -- misc ---------------------------------------------------------------------
+# The stealth skin never announces the platform on stdout
+THEME_QUIET_LOGIN=true
+THEME_POST_HOOKS=""

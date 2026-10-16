@@ -1,0 +1,61 @@
+# =============================================================================
+# cyberdeck-arsenal :: usb-watcher.service
+# =============================================================================
+# Watches udev for USB device insertion/removal. Depending on usb.auto_actions
+# in cyberdeck.conf it will hash the device contents, write a forensic image,
+# mount removable media read-only, log everything to data/usb.db and raise an
+# alert (including an LED flash on GPIO decks).
+#
+# A newly inserted USB stick is one of the highest-risk events on a deck:
+# think BadUSB, autorun payloads and data exfiltration. This service exists to
+# make sure the operator always knows it happened.
+#
+# Start  : sudo systemctl start usb-watcher.service
+# Python : uses the venv interpreter when present, else /usr/bin/python3
+# Logs   : journalctl -u usb-watcher -f
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal USB device watcher and handler
+Documentation=file:/opt/cyberdeck-arsenal/docs/CONFIGURATION.md
+After=local-fs.target udev-settle.service systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+ConditionPathExists=/opt/cyberdeck-arsenal/utilities/usb_handler.py
+Conflicts=cyberdeck-panic.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/cyberdeck-arsenal
+Environment=PYTHONUNBUFFERED=1
+Environment=CYBERDECK_INSTALL_DIR=/opt/cyberdeck-arsenal
+Environment=PYTHONPATH=/opt/cyberdeck-arsenal/lib
+ExecStart=/bin/sh -c 'PY=/opt/cyberdeck-arsenal/venv/bin/python; [ -x "$PY" ] || PY=/usr/bin/python3; exec "$PY" /opt/cyberdeck-arsenal/utilities/usb_handler.py --watch --from-service'
+Restart=always
+RestartSec=10
+StartLimitBurst=10
+StartLimitIntervalSec=300
+
+StandardOutput=append:/opt/cyberdeck-arsenal/logs/usb-watcher.log
+StandardError=append:/opt/cyberdeck-arsenal/logs/usb-watcher.log
+SyslogIdentifier=usb-watcher
+Nice=5
+MemoryMax=512M
+TimeoutStopSec=20
+
+# Imaging devices needs raw disk access, so this unit is deliberately the most
+# privileged of the monitors - keep the filesystem protections tight.
+NoNewPrivileges=yes
+ProtectHome=read-only
+ProtectSystem=full
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH CAP_MKNOD CAP_NET_ADMIN
+AmbientCapabilities=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH CAP_MKNOD
+
+[Install]
+WantedBy=multi-user.target

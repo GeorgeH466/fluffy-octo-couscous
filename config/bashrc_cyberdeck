@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# =============================================================================
+# config/bashrc_cyberdeck - interactive environment for the cyberdeck
+# =============================================================================
+#
+# Description
+# -----------
+# Installed by setup.sh as /etc/profile.d/cyberdeck.sh (so it applies to every
+# login shell) and optionally appended to an operator's ~/.bashrc. It exports
+# the paths and helper variables the toolkit expects, adds the install bin
+# directory to PATH, sources the alias set, configures history and tmux
+# behaviour, and provides a compact, informative prompt showing the active
+# engagement context.
+#
+# Author      : cyberdeck-arsenal contributors
+# Version     : 1.0.0
+# Dependencies: bash, cyberdeck-arsenal at /opt/cyberdeck-arsenal
+# Licence     : MIT - authorised use only (see docs/LEGAL.md)
+#
+# Notes
+# -----
+# * Everything is exported with `${VAR:-default}` so an operator can override a
+#   value before logging in (e.g. from /etc/environment) without editing this
+#   file.
+# * Non-interactive shells exit early, so pipes and scripts are unaffected.
+# =============================================================================
+
+# --------------------------------------------------------------------------- #
+# Paths
+# --------------------------------------------------------------------------- #
+export CYBERDECK_INSTALL_DIR="${CYBERDECK_INSTALL_DIR:-/opt/cyberdeck-arsenal}"
+CDECK_INSTALL_DIR="${CYBERDECK_INSTALL_DIR}"
+
+export CYBERDECK_CONF="${CYBERDECK_CONF:-${CDECK_INSTALL_DIR}/cyberdeck.conf}"
+export CYBERDECK_LOGS="${CYBERDECK_LOGS:-${CDECK_INSTALL_DIR}/logs}"
+export CYBERDECK_DATA="${CYBERDECK_DATA:-${CDECK_INSTALL_DIR}/data}"
+export CYBERDECK_CAPTURES="${CYBERDECK_CAPTURES:-${CDECK_INSTALL_DIR}/captures}"
+export CYBERDECK_REPORTS="${CYBERDECK_REPORTS:-${CDECK_INSTALL_DIR}/reports}"
+export CYBERDECK_PROFILES="${CYBERDECK_PROFILES:-${CDECK_INSTALL_DIR}/profiles}"
+export CYBERDECK_VAULT="${CYBERDECK_VAULT:-${CDECK_INSTALL_DIR}/vault}"
+export CYBERDECK_WORDLISTS="${CYBERDECK_WORDLISTS:-${CDECK_INSTALL_DIR}/data/wordlists}"
+
+# The Python components import lib/cyberlib.py through this
+export PYTHONPATH="${CDECK_INSTALL_DIR}/lib${PYTHONPATH:+:${PYTHONPATH}}"
+
+# Prefer the toolkit's virtualenv interpreter, then the system one
+if [[ -x "${CDECK_INSTALL_DIR}/venv/bin/python3" ]]; then
+    export CYBERDECK_PYTHON="${CDECK_INSTALL_DIR}/venv/bin/python3"
+else
+    export CYBERDECK_PYTHON="$(command -v python3 || echo /usr/bin/python3)"
+fi
+
+case ":${PATH}:" in
+    *":${CDECK_INSTALL_DIR}/bin:"*) ;;
+    *) export PATH="${CDECK_INSTALL_DIR}/bin:${PATH}" ;;
+esac
+
+# --------------------------------------------------------------------------- #
+# Aliases and helper functions
+# --------------------------------------------------------------------------- #
+if [[ -r "${CDECK_INSTALL_DIR}/config/aliases.sh" ]]; then
+    # shellcheck source=config/aliases.sh
+    source "${CDECK_INSTALL_DIR}/config/aliases.sh"
+elif [[ -r "$(dirname "${BASH_SOURCE[0]}")/aliases.sh" ]]; then
+    # shellcheck source=config/aliases.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/aliases.sh"
+fi
+
+# --------------------------------------------------------------------------- #
+# Interactive-only configuration
+# --------------------------------------------------------------------------- #
+case "$-" in
+    *i*) ;;
+    *) return 0 2>/dev/null || exit 0 ;;
+esac
+
+# --- history: timestamps, no duplicates, searchable ------------------------ #
+export HISTSIZE=20000
+export HISTFILESIZE=50000
+export HISTCONTROL=ignoreboth:erasedups
+export HISTTIMEFORMAT='%F %T '
+export HISTIGNORE='ls:ll:cd:pwd:exit:clear:history:jobs:bg:fg'
+shopt -s histappend cmdhist checkwinsize 2>/dev/null || true
+PROMPT_COMMAND="history -a; history -n${PROMPT_COMMAND:+; ${PROMPT_COMMAND}}"
+
+# --- completion ------------------------------------------------------------ #
+if ! shopt -oq posix; then
+    if [[ -r /usr/share/bash-completion/bash_completion ]]; then
+        # shellcheck source=/dev/null
+        source /usr/share/bash-completion/bash_completion
+    elif [[ -r /etc/bash_completion ]]; then
+        # shellcheck source=/dev/null
+        source /etc/bash_completion
+    fi
+fi
+
+shopt -s globstar dotglob nocaseglob 2>/dev/null || true
+set -o noclobber   # avoid clobbering captures with a stray `>`
+
+# Let Ctrl-R search with fuzzy matching when fzf is installed
+if [[ -x /usr/bin/fzf ]]; then
+    # shellcheck source=/dev/null
+    [[ -f /usr/share/fzf/key-bindings.bash ]] && source /usr/share/fzf/key-bindings.bash
+    [[ -f /usr/share/fzf/completion.bash ]] && source /usr/share/fzf/completion.bash
+fi
+export FZF_DEFAULT_OPTS="--height 40% --layout=reverse --border --info=inline"
+
+# --------------------------------------------------------------------------- #
+# Prompt: engagement-aware, colour-coded, warning when running as root
+# --------------------------------------------------------------------------- #
+__cyberdeck_git_branch() {
+    local branch
+    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 0
+    printf ' %s' "${branch}"
+}
+
+__cyberdeck_prompt() {
+    local last_status=$?
+    local reset=$'\033[0m'
+    local bold=$'\033[1m'
+    local dim=$'\033[2m'
+    local red=$'\033[31m'
+    local yellow=$'\033[33m'
+    local cyan=$'\033[36m'
+    local green=$'\033[32m'
+    local blue=$'\033[34m'
+    local magenta=$'\033[35m'
+    local user_colour="${green}"
+    local host_colour="${cyan}"
+    local path_colour="${blue}"
+    : "${dim}"
+
+    # Compress $HOME to ~, and long paths to their tail
+    local display_path="${PWD/#$HOME/~}"
+    if (( ${#display_path} > 44 )); then
+        display_path="…${display_path: -42}"
+    fi
+
+    local battery="" temperature=""
+    if [[ -r /sys/class/power_supply/BAT0/capacity ]]; then
+        battery=" ⚡$(cat /sys/class/power_supply/BAT0/capacity)%"
+    elif [[ -r /sys/class/power_supply/BAT1/capacity ]]; then
+        battery=" ⚡$(cat /sys/class/power_supply/BAT1/capacity)%"
+    fi
+    if [[ -r /sys/class/thermal/thermal_zone0/temp ]]; then
+        temperature=" ▼$(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 ))°C"
+    fi
+
+    local engagement=""
+    for variable in CYBERDECK_ENGAGEMENT CDECK_ENGAGEMENT; do
+        [[ -n "${!variable:-}" ]] && engagement=" ${yellow}[${!variable}]${reset}"
+    done
+
+    local root_flag=""
+    [[ "${EUID}" -eq 0 ]] && root_flag=" ${red}root${reset}"
+
+    PS1="${bold}${user_colour}\u${reset}${bold}@${reset}${bold}${host_colour}\h${reset}"
+    PS1+="${magenta}$(__cyberdeck_git_branch)${reset}"
+    PS1+=" ${bold}${path_colour}${display_path}${reset}"
+    PS1+="${engagement}${root_flag}"
+    PS1+=" ${green}${battery}${reset}${yellow}${temperature}${reset}"
+    if (( last_status != 0 )); then
+        PS1+=" ${red}✘${last_status}${reset}"
+    fi
+    PS1+="\n${bold}${cyan}└─❯${reset} "
+
+    PS2="  ${cyan}│${reset} "
+    PS4='+ ${BASH_SOURCE##*/}:${LINENO}: '
+}
+
+if [[ -z "${CYBERDECK_PLAIN_PROMPT:-}" ]]; then
+    PROMPT_COMMAND="__cyberdeck_prompt${PROMPT_COMMAND:+; ${PROMPT_COMMAND}}"
+fi
+
+# Title bar shows the host and the current directory
+case "${TERM}" in
+    xterm*|rxvt*|screen*|tmux*|*kitty*|alacritty*)
+        PROMPT_COMMAND="printf '\033]0;cyberdeck %s: %s\007' \"\$(hostname -s)\" \"\${PWD/#\$HOME/~}\"${PROMPT_COMMAND:+; ${PROMPT_COMMAND}}"
+        ;;
+esac
+
+# --------------------------------------------------------------------------- #
+# Session conveniences
+# --------------------------------------------------------------------------- #
+export EDITOR="${EDITOR:-nvim}"
+command -v nvim >/dev/null 2>&1 || export EDITOR="$(command -v vim || echo vi)"
+export PAGER="${PAGER:-less}"
+export LESS="-R -F -X -M"
+export BAT_THEME="ansi"                     # keep reports readable over SSH
+export GCC_COLORS="error=01;31:warning=01;33:note=01;36"
+
+# Coloured man pages and diff, when the tools are installed
+export MANPAGER="sh -c 'col -bx | bat -l man -p' 2>/dev/null || less"
+export GIT_PAGER="less -FRX"
+
+# tmux: use the deck config and a per-host socket so sessions never collide
+export TMUX_CONF="${CDECK_INSTALL_DIR}/config/tmux.conf"
+alias tmux='tmux -f "${TMUX_CONF}"'
+alias tmuxls='tmux -f "${TMUX_CONF}" ls'
+
+# Quick navigation
+alias ll='ls -lh --group-directories-first --color=auto'
+alias la='ls -lah --group-directories-first --color=auto'
+alias lt='ls -lhtr --color=auto | tail -20'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias grep='grep --color=auto'
+alias df='df -h'
+alias du='du -h --max-depth=1'
+alias free='free -h'
+alias psg='ps aux | grep -v grep | grep -i'
+alias ports='ss -tulpn'
+
+# --------------------------------------------------------------------------- #
+# Safety rails
+# --------------------------------------------------------------------------- #
+# Ask before overwriting a capture, report or log file
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -I --preserve-root'
+
+# Never let an accidental `rm -rf` reach the install directory
+__cyberdeck_guard_rm() {
+    if [[ "${1:-}" == "-rf" || "${1:-}" == "-fr" ]] && [[ "${2:-}" == "/" ]]; then
+        echo "cyberdeck: refusing to remove the root filesystem" >&2
+        return 1
+    fi
+    command rm "$@"
+}
+alias rm='__cyberdeck_guard_rm'
+
+# Warn if the current directory is world-writable
+__cyberdeck_warn_world_writable() {
+    local mode
+    mode="$(stat -c '%a' . 2>/dev/null)"
+    if [[ -n "${mode}" && "${mode: -1}" == "7" ]]; then
+        printf '\033[33m  ! current directory is world-writable (%s) - be careful with captures\033[0m\n' "${mode}"
+    fi
+}
+if [[ -n "${CYBERDECK_WARN_WORLD_WRITABLE:-}" ]]; then
+    __cyberdeck_warn_world_writable
+fi
+
+# --------------------------------------------------------------------------- #
+# Handy one-liners for the deck
+# --------------------------------------------------------------------------- #
+# Show what is running: services, listeners, battery, temperature
+deck-vitals() {
+    systemctl --no-pager --plain list-units 'cyberdeck-*' --all 2>/dev/null
+    echo
+    echo "interfaces:"
+    ip -brief address 2>/dev/null | sed 's/^/  /'
+    echo
+    command -v sensors >/dev/null 2>&1 && sensors 2>/dev/null | head -12
+}
+
+# Start an engagement context so every capture lands in the same directory
+engage() {
+    if [[ -z "${1:-}" ]]; then
+        echo "usage: engage <client-or-target-name>" >&2
+        return 2
+    fi
+    local slug
+    slug="$(printf '%s' "$1" | tr -c '[:alnum:]._-' '-' | sed 's/--*/-/g;s/^-//;s/-$//')"
+    export CYBERDECK_ENGAGEMENT="${slug}"
+    mkdir -p "${CYBERDECK_REPORTS}/${slug}" "${CYBERDECK_CAPTURES}/${slug}"
+    cd "${CYBERDECK_REPORTS}/${slug}" || return 1
+    echo "engagement context: ${slug}"
+    echo "  reports : ${CYBERDECK_REPORTS}/${slug}"
+    echo "  captures: ${CYBERDECK_CAPTURES}/${slug}"
+    echo "  end it  : disengage"
+}
+
+disengage() {
+    unset CYBERDECK_ENGAGEMENT CDECK_ENGAGEMENT
+    echo "engagement context cleared"
+}

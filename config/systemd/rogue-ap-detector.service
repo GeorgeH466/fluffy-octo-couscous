@@ -1,0 +1,58 @@
+# =============================================================================
+# cyberdeck-arsenal :: rogue-ap-detector.service
+# =============================================================================
+# Periodically scans the WiFi landscape and compares it against the saved
+# baseline (data/baseline.db). New BSSIDs, channel changes, identical SSIDs on
+# different BSSIDs (likely evil twins) and encryption downgrades are reported
+# to the alert feed and, if configured, to the webhook.
+#
+# Prepare the baseline first:
+#     sudo cdeck rogue baseline save
+#
+# Start  : sudo systemctl start rogue-ap-detector.service
+# Python : uses the venv interpreter when present, else /usr/bin/python3
+# Logs   : journalctl -u rogue-ap-detector -f
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal rogue AP / evil twin detector
+Documentation=file:/opt/cyberdeck-arsenal/docs/CONFIGURATION.md
+After=network.target
+ConditionPathExists=/opt/cyberdeck-arsenal/recon/passive/rogue_ap_detector.py
+Conflicts=cyberdeck-panic.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/cyberdeck-arsenal
+Environment=PYTHONUNBUFFERED=1
+Environment=CYBERDECK_INSTALL_DIR=/opt/cyberdeck-arsenal
+Environment=PYTHONPATH=/opt/cyberdeck-arsenal/lib
+ExecStart=/bin/sh -c 'PY=/opt/cyberdeck-arsenal/venv/bin/python; [ -x "$PY" ] || PY=/usr/bin/python3; exec "$PY" /opt/cyberdeck-arsenal/recon/passive/rogue_ap_detector.py --watch --from-service'
+Restart=on-failure
+RestartSec=20
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+StandardOutput=append:/opt/cyberdeck-arsenal/logs/rogue-ap-detector.log
+StandardError=append:/opt/cyberdeck-arsenal/logs/rogue-ap-detector.log
+SyslogIdentifier=rogue-ap-detector
+Nice=10
+CPUWeight=40
+MemoryMax=256M
+TimeoutStopSec=15
+
+NoNewPrivileges=yes
+ProtectHome=read-only
+ProtectSystem=full
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

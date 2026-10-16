@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Invoice ready for review</title>
+<style>
+ body {{ background:#0b0f14; color:#c7f9ff; font-family: "DejaVu Sans Mono", monospace;
+        margin:0; padding:3rem; }}
+ .card {{ max-width:46rem; margin:auto; border:1px solid #1f6f78; border-radius:12px;
+          padding:2rem; background:#0f1720; box-shadow:0 0 24px #062a2f inset; }}
+ h1 {{ color:#39ff14; font-size:1.3rem; letter-spacing:.08em; }}
+ a.button {{ display:inline-block; margin-top:1.2rem; padding:.7rem 1.2rem; border-radius:8px;
+             background:#39ff14; color:#04140a; text-decoration:none; font-weight:bold; }}
+ small {{ color:#5f8f96; }}
+</style></head>
+<body><div class="card">
+ <h1>Invoice {engagement}</h1>
+ <p>An invoice has been published to your account and requires review before
+    {deadline}.</p>
+ <p><a class="button" href="/{payload}">Open the invoice</a></p>
+ <p><small>Reference {reference} · delivered {generated}</small></p>
+</div></body></html>

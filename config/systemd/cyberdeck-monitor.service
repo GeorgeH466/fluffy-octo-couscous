@@ -1,0 +1,65 @@
+# =============================================================================
+# cyberdeck-arsenal :: cyberdeck-monitor.service
+# =============================================================================
+# Always-on situational awareness: tracks WiFi landscape, ARP neighbours, USB
+# events and battery state, writing everything to the shared SQLite databases
+# and firing alerts when something changes.
+#
+# Enable : sudo systemctl enable --now cyberdeck-monitor.service
+# Python : uses the venv interpreter when present, else /usr/bin/python3
+# Logs   : journalctl -u cyberdeck-monitor -f
+#        : /opt/cyberdeck-arsenal/logs/cyberdeck-monitor.log
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal always-on situational awareness monitor
+Documentation=file:/opt/cyberdeck-arsenal/docs/CONFIGURATION.md
+After=network-online.target local-fs.target
+Wants=network-online.target
+ConditionPathExists=/opt/cyberdeck-arsenal/automation/triggers.py
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/cyberdeck-arsenal
+Environment=PYTHONUNBUFFERED=1
+Environment=CYBERDECK_INSTALL_DIR=/opt/cyberdeck-arsenal
+Environment=PYTHONPATH=/opt/cyberdeck-arsenal/lib
+ExecStart=/bin/sh -c 'PY=/opt/cyberdeck-arsenal/venv/bin/python; [ -x "$PY" ] || PY=/usr/bin/python3; exec "$PY" /opt/cyberdeck-arsenal/automation/triggers.py --daemon --profile monitor'
+
+# A monitor that crashes should come back, but not thrash the CPU
+Restart=on-failure
+RestartSec=15
+StartLimitBurst=5
+StartLimitIntervalSec=120
+
+# Logging and resource limits: monitoring must never starve the operator's shell
+StandardOutput=append:/opt/cyberdeck-arsenal/logs/cyberdeck-monitor.log
+StandardError=append:/opt/cyberdeck-arsenal/logs/cyberdeck-monitor.log
+SyslogIdentifier=cyberdeck-monitor
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+CPUWeight=50
+MemoryMax=512M
+MemoryHigh=384M
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+# Hardening: the monitor only needs to read the network stack and write its logs
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

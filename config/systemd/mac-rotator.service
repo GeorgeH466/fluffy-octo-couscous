@@ -1,0 +1,45 @@
+# =============================================================================
+# cyberdeck-arsenal :: mac-rotator.service
+# =============================================================================
+# One-shot MAC randomisation pass, driven by mac-rotator.timer. Runs in
+# oneshot mode so there is no long-lived process; the timer owns the schedule.
+#
+# Test manually: sudo systemctl start mac-rotator.service
+# Verify       : cdeck mac --status
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal MAC address rotation pass
+Documentation=file:/opt/cyberdeck-arsenal/docs/CONFIGURATION.md
+After=network.target
+ConditionPathExists=/opt/cyberdeck-arsenal/utilities/mac_rotator.py
+# Skip while the self-destruct routine is flushing the deck
+Conflicts=cyberdeck-panic.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+User=root
+Group=root
+WorkingDirectory=/opt/cyberdeck-arsenal
+Environment=PYTHONUNBUFFERED=1
+Environment=CYBERDECK_INSTALL_DIR=/opt/cyberdeck-arsenal
+Environment=PYTHONPATH=/opt/cyberdeck-arsenal/lib
+ExecStart=/bin/sh -c 'PY=/opt/cyberdeck-arsenal/venv/bin/python; [ -x "$PY" ] || PY=/usr/bin/python3; exec "$PY" /opt/cyberdeck-arsenal/utilities/mac_rotator.py --rotate --from-service'
+
+# Rotation touches the radio, so give it a moment before declaring failure
+TimeoutStartSec=60
+StandardOutput=append:/opt/cyberdeck-arsenal/logs/mac-rotator.log
+StandardError=append:/opt/cyberdeck-arsenal/logs/mac-rotator.log
+SyslogIdentifier=mac-rotator
+Nice=5
+
+NoNewPrivileges=yes
+ProtectHome=read-only
+ProtectSystem=full
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target

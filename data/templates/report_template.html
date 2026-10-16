@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!--
+  cyberdeck-arsenal :: report_template.html
+  ===========================================================================
+  HTML report template used by recon/reporting/report_generator.py.
+
+  How it works
+  ------------
+  * `{{TOKEN}}` placeholders are substituted verbatim (no str.format), so CSS
+    and JavaScript braces are always safe.
+  * The single marker line below (an HTML comment containing the word BODY)
+    marks where the generated report body is inserted. Do not remove it, or the
+    generator falls back to its built-in template.
+  * Available tokens: {{CLIENT}} {{GENERATED}} {{TESTER}} {{SCOPE}}
+    {{RISK}} {{VERSION}}
+
+  Customise freely - colours, logo, client branding. Print to PDF with
+  Ctrl-P in any browser; the print stylesheet is already tuned.
+  ===========================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security assessment report - {{CLIENT}}</title>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#151b23; --ink:#d7e3ee; --dim:#7d8b99;
+    --accent:#00ffd5; --critical:#ff4d4d; --high:#ff9640;
+    --medium:#ffd166; --low:#5cc8ff; --info:#8d9aa6;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap { max-width:1000px; margin:0 auto; padding:40px 24px 80px; }
+  .brand { display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+  .brand-mark {
+    width:38px; height:38px; border-radius:8px; background:linear-gradient(135deg,#00ffd5,#ff79c6);
+    display:flex; align-items:center; justify-content:center; font-weight:800; color:#0e1116;
+  }
+  h1 { font-size:2rem; margin:0 0 4px; color:#fff; }
+  h2 { margin-top:2.4rem; padding-bottom:.4rem; border-bottom:1px solid #263042; color:var(--accent); }
+  h3 { margin-top:2rem; color:#fff; }
+  .sub { color:var(--dim); margin-bottom:2rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:24px 0; }
+  .card { background:var(--panel); border:1px solid #263042; border-radius:10px; padding:14px 16px; }
+  .card .label { color:var(--dim); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; }
+  .card .value { font-size:1.35rem; font-weight:600; }
+  table { width:100%; border-collapse:collapse; margin:16px 0; font-size:.92rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #263042; vertical-align:top; }
+  th { color:var(--dim); text-transform:uppercase; font-size:.75rem; letter-spacing:.05em; }
+  code, pre {
+    background:#0b0f14; border:1px solid #263042; border-radius:6px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.86rem;
+  }
+  code { padding:2px 5px; }
+  pre { padding:12px; overflow-x:auto; white-space:pre-wrap; }
+  .severity {
+    display:inline-block; padding:2px 9px; border-radius:999px; font-size:.74rem;
+    font-weight:700; letter-spacing:.04em; color:#0e1116;
+  }
+  .CRITICAL { background:var(--critical); }
+  .HIGH     { background:var(--high); }
+  .MEDIUM   { background:var(--medium); }
+  .LOW      { background:var(--low); }
+  .INFO     { background:var(--info); }
+  .finding {
+    background:var(--panel); border:1px solid #263042; border-left:4px solid var(--dim);
+    border-radius:10px; padding:18px 20px; margin:18px 0;
+  }
+  .finding.CRITICAL { border-left-color:var(--critical); }
+  .finding.HIGH     { border-left-color:var(--high); }
+  .finding.MEDIUM   { border-left-color:var(--medium); }
+  .finding.LOW      { border-left-color:var(--low); }
+  .meta { color:var(--dim); font-size:.85rem; margin:6px 0 12px; }
+  .label { color:var(--accent); font-weight:600; display:block; margin:14px 0 4px; }
+  a { color:var(--accent); }
+  .notice {
+    background:#1d232c; border:1px solid #2d3a4d; border-left:4px solid var(--accent);
+    border-radius:8px; padding:12px 16px; color:var(--dim); font-size:.9rem; margin:20px 0;
+  }
+  footer { margin-top:60px; color:var(--dim); font-size:.85rem; border-top:1px solid #263042; padding-top:16px; }
+  @media print {
+    body { background:#fff; color:#111; }
+    .card, .finding, pre, code { background:#f7f8fa; }
+    h2 { color:#0b5; }
+    .wrap { padding:0; }
+    .severity { color:#000; }
+    footer { color:#444; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <div class="brand-mark">CD</div>
+    <div>
+      <h1>Security assessment report</h1>
+      <div class="sub">
+        {{CLIENT}} &middot; {{GENERATED}} &middot; overall risk <strong>{{RISK}}</strong>
+        &middot; prepared by {{TESTER}}
+      </div>
+    </div>
+  </div>
+
+  <div class="notice">
+    Scope: {{SCOPE}}. Testing was performed only against assets the client confirmed they
+    own or are authorised to test. No denial-of-service testing or destructive payloads were
+    used. All evidence hashes are recorded in the chain-of-custody log.
+  </div>
+
+<!-- BODY -->
+
+  <footer>
+    Generated by cyberdeck-arsenal v{{VERSION}} &middot; {{GENERATED}}.<br>
+    Findings reflect the state of the systems at the time of testing and should be
+    re-validated after remediation. This document may contain sensitive information:
+    handle it according to your data classification policy.
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,335 @@
+# cyberdeck-arsenal OUI database (MAC address vendor prefixes)
+# =============================================================================
+# Format : AA:BB:CC Vendor name
+# Used by : lib/cyberlib.py (OuiLookup), wifi_probe_logger.py, ble_scanner.py,
+#           arp_mapper.py, network_map.py, rogue_ap_detector.py
+#
+# This file is a curated seed so the suite works out of the box and offline.
+# Replace it with the full IEEE registry (~35k entries) with:
+#
+#     cdeck update          # or
+#     curl -sL https://standards-oui.ieee.org/oui/oui.txt -o /tmp/oui.txt
+#     awk '/\(hex\)/ {gsub(/\(hex\)/,""); print $1, substr($0, index($0,$4))}' \
+#         /tmp/oui.txt > /opt/cyberdeck-arsenal/data/oui_database.txt
+#
+# Locally-administered (randomised) MACs are detected by the U/L bit in the
+# first octet and are reported as "Randomised (locally administered)" rather
+# than being looked up here - modern phones rotate their MAC for every network.
+# =============================================================================
+
+# --- network infrastructure -------------------------------------------------
+00:00:0C Cisco Systems, Inc
+00:00:5E ICANN, IANA Department
+00:01:42 Cisco Systems, Inc
+00:01:63 Cisco Systems, Inc
+00:03:6B Cisco Systems, Inc
+00:04:9A Cisco Systems, Inc
+00:0C:29 VMware, Inc.
+00:0C:85 Cisco Systems, Inc
+00:0D:3A Microsoft Corporation
+00:0F:B5 Netgear, Inc
+00:13:10 Cisco-Linksys, LLC
+00:13:49 ZyXEL Communications
+00:14:22 Dell EMC
+00:15:5D Microsoft Corporation
+00:16:3E Xensource, Inc.
+00:17:5A Cisco Systems, Inc
+00:18:39 Cisco-Linksys, LLC
+00:1A:2B Ayecom Technology
+00:1B:63 Apple, Inc.
+00:1C:B3 Apple, Inc.
+00:1D:7E Cisco-Linksys, LLC
+00:1E:C2 Apple, Inc.
+00:1F:5B Apple, Inc.
+00:21:5C Intel Corporate
+00:22:6B Cisco-Linksys, LLC
+00:23:12 Apple, Inc.
+00:24:B2 Netgear, Inc
+00:25:00 Apple, Inc.
+00:25:9C Cisco-Linksys, LLC
+00:26:5A D-Link Corporation
+00:50:56 VMware, Inc.
+00:50:F2 Microsoft Corporation
+00:90:4C Epic Systems
+04:18:D6 Ubiquiti Networks
+04:A1:51 Netgear, Inc
+08:00:27 PCS Systemtechnik GmbH (VirtualBox)
+08:55:31 Routerboard.com (MikroTik)
+0C:80:63 TP-Link Technologies
+10:0D:7F Netgear, Inc
+10:C3:7B ASUSTek Computer Inc.
+14:CC:20 TP-Link Technologies
+18:E8:29 Ubiquiti Networks
+1C:5A:6B Philips
+20:4E:7F Netgear, Inc
+24:A4:3C Ubiquiti Networks
+28:C6:8E Netgear, Inc
+2C:30:33 Netgear, Inc
+30:B5:C2 TP-Link Technologies
+38:2C:4A ASUSTek Computer Inc.
+44:D9:E7 Ubiquiti Networks
+48:8F:5A Routerboard.com (MikroTik)
+4C:5E:0C Routerboard.com (MikroTik)
+50:6A:03 Netgear, Inc
+54:A0:50 ASUSTek Computer Inc.
+58:EF:68 Belkin International Inc.
+5C:02:14 QLogic
+60:38:E0 Belkin International Inc.
+6C:B0:CE Netgear, Inc
+74:AC:B9 Ubiquiti Networks
+78:D2:94 Netgear, Inc
+7C:8B:CA TP-Link Technologies
+80:2A:A8 Ubiquiti Networks
+84:16:F9 TP-Link Technologies
+88:1F:A1 Apple, Inc.
+8C:88:2B Netgear, Inc
+90:9A:4A TP-Link Technologies
+94:10:3E Belkin International Inc.
+A0:40:A0 Netgear, Inc
+A4:5E:60 Apple, Inc.
+AC:84:C6 TP-Link Technologies
+B0:4E:26 TP-Link Technologies
+B0:BE:76 TP-Link Technologies
+BC:EE:7B ASUSTek Computer Inc.
+C0:56:27 Belkin International Inc.
+C4:12:F5 D-Link Corporation
+C8:3A:35 Tenda Technology
+CC:2D:E0 Routerboard.com (MikroTik)
+D8:0D:17 TP-Link Technologies
+DC:9F:DB Ubiquiti Networks
+E0:1C:FC D-Link Corporation
+E4:8D:8C Routerboard.com (MikroTik)
+E8:DE:27 TP-Link Technologies
+EC:08:6B TP-Link Technologies
+F0:9F:C2 Ubiquiti Networks
+F4:EC:38 TP-Link Technologies
+F8:1A:67 TP-Link Technologies
+FC:EC:DA Ubiquiti Networks
+
+# --- single-board computers and embedded ------------------------------------
+B8:27:EB Raspberry Pi Foundation
+DC:A6:32 Raspberry Pi Trading Ltd
+E4:5F:01 Raspberry Pi Trading Ltd
+28:CD:C1 Raspberry Pi Trading Ltd
+D8:3A:DD Raspberry Pi Trading Ltd
+2C:CF:67 Raspberry Pi Trading Ltd
+24:0A:C4 Espressif Inc.
+30:AE:A4 Espressif Inc.
+3C:71:BF Espressif Inc.
+48:3F:DA Espressif Inc.
+5C:CF:7F Espressif Inc.
+84:0D:8E Espressif Inc.
+A4:CF:12 Espressif Inc.
+AC:67:B2 Espressif Inc.
+B4:E6:2D Espressif Inc.
+C4:4F:33 Espressif Inc.
+CC:50:E3 Espressif Inc.
+D8:F1:5B Espressif Inc.
+EC:FA:BC Espressif Inc.
+F4:CF:A2 Espressif Inc.
+24:62:AB Espressif Inc.
+10:52:1C Espressif Inc.
+00:1E:C0 Microchip Technology
+00:04:A3 Microchip Technology
+00:12:4B Texas Instruments
+68:C9:0B Texas Instruments
+84:DD:20 Texas Instruments
+A0:E6:F8 Texas Instruments
+B0:B4:48 Texas Instruments
+CC:78:AB Texas Instruments
+D0:39:72 Texas Instruments
+E0:E5:CF Texas Instruments
+F0:F8:F2 Texas Instruments
+04:91:62 Microchip Technology
+40:F5:20 Nordic Semiconductor
+C3:17:5F Nordic Semiconductor
+E0:4F:43 Nordic Semiconductor
+F4:CE:36 Nordic Semiconductor
+00:25:8B Samsung Electronics
+50:32:75 Samsung Electronics
+78:1F:DB Samsung Electronics
+
+# --- consumer / mobile ------------------------------------------------------
+00:1A:11 Google, Inc.
+3C:5A:B4 Google, Inc.
+F4:F5:D8 Google, Inc.
+F4:F5:E8 Google, Inc.
+54:60:09 Google, Inc.
+6C:AD:F8 Google, Inc.
+94:EB:2C Google, Inc.
+A4:77:33 Google, Inc.
+D8:6C:63 Google, Inc.
+00:17:AB Apple, Inc.
+00:23:DF Apple, Inc.
+04:0C:CE Apple, Inc.
+04:54:53 Apple, Inc.
+10:40:F3 Apple, Inc.
+28:CF:E9 Apple, Inc.
+30:90:AB Apple, Inc.
+34:12:98 Apple, Inc.
+40:6C:8F Apple, Inc.
+48:43:7C Apple, Inc.
+5C:F9:38 Apple, Inc.
+60:03:08 Apple, Inc.
+64:B9:E8 Apple, Inc.
+70:11:24 Apple, Inc.
+78:31:C1 Apple, Inc.
+84:38:35 Apple, Inc.
+88:C6:63 Apple, Inc.
+98:01:A7 Apple, Inc.
+9C:F3:87 Apple, Inc.
+A8:66:7F Apple, Inc.
+AC:DE:48 Private
+B8:E8:56 Apple, Inc.
+C0:CE:CD Apple, Inc.
+D0:81:7A Apple, Inc.
+DC:2B:2A Apple, Inc.
+E0:B9:BA Apple, Inc.
+F0:18:98 Apple, Inc.
+F4:0F:24 Apple, Inc.
+00:21:6A Intel Corporate
+00:24:D7 Intel Corporate
+34:E6:AD Intel Corporate
+3C:97:0E Intel Corporate
+44:85:00 Intel Corporate
+54:27:1E Intel Corporate
+5C:E0:C5 Intel Corporate
+70:5A:0F Intel Corporate
+78:92:9C Intel Corporate
+8C:16:45 Intel Corporate
+A0:88:B4 Intel Corporate
+AC:7B:A1 Intel Corporate
+B8:08:CF Intel Corporate
+C8:F7:50 Intel Corporate
+D8:FC:93 Intel Corporate
+E4:A4:71 Intel Corporate
+F8:16:54 Intel Corporate
+00:1B:77 Intel Corporate
+00:26:B9 Dell Inc.
+14:18:77 Dell Inc.
+18:66:DA Dell Inc.
+24:B6:FD Dell Inc.
+34:17:EB Dell Inc.
+44:A8:42 Dell Inc.
+4C:D9:8F Dell Inc.
+54:48:10 Dell Inc.
+84:2B:2B Dell Inc.
+B0:83:FE Dell Inc.
+C8:1F:66 Dell Inc.
+D0:67:E5 Dell Inc.
+F8:BC:12 Dell Inc.
+00:24:81 Hewlett Packard
+00:1F:29 Hewlett Packard
+10:60:4B Hewlett Packard
+2C:44:FD Hewlett Packard
+3C:D9:2B Hewlett Packard
+6C:3B:6B Hewlett Packard
+94:57:A5 Hewlett Packard
+9C:B6:54 Hewlett Packard
+A0:48:1C Hewlett Packard
+B4:99:BA Hewlett Packard
+C8:CB:B8 Hewlett Packard
+D4:85:64 Hewlett Packard
+EC:9A:74 Hewlett Packard
+F4:CE:46 Hewlett Packard
+00:1B:24 Quanta Computer
+00:26:C6 Lenovo
+08:9E:01 Quanta Computer
+28:D2:44 Lenovo
+3C:91:80 Lenovo
+50:7B:9D Lenovo
+54:E1:AD Lenovo
+68:F7:28 Lenovo
+70:72:3C Lenovo
+80:FA:5B Lenovo
+C8:5B:76 Lenovo
+D8:5D:E2 Lenovo
+E8:6A:64 Lenovo
+00:1B:21 Intel Corporate
+00:15:65 Xensource, Inc.
+52:54:00 Realtek (QEMU/KVM virtual NIC)
+08:00:27 PCS Systemtechnik GmbH (VirtualBox)
+00:05:69 VMware, Inc.
+00:0C:29 VMware, Inc.
+00:1C:14 VMware, Inc.
+00:50:56 VMware, Inc.
+
+# --- peripherals, printers, media -------------------------------------------
+00:1B:A9 Brother Industries, Ltd.
+30:05:5C Brother Industries, Ltd.
+00:00:48 Seiko Epson Corporation
+00:26:AB Seiko Epson Corporation
+38:1A:52 Seiko Epson Corporation
+A4:5D:36 Hewlett Packard (printers)
+00:17:88 Philips Lighting (Hue bridge)
+EC:B5:FA Philips Lighting (Hue bridge)
+00:04:20 Sony Corporation
+00:13:A9 Sony Corporation
+28:0D:FC Sony Corporation
+78:84:3C Sony Corporation
+B8:F9:34 Sony Corporation
+00:1F:3A Roku, Inc.
+AC:3A:7A Roku, Inc.
+B0:A7:37 Roku, Inc.
+CC:6D:A0 Roku, Inc.
+D8:31:34 Roku, Inc.
+00:0E:58 Sonos, Inc.
+78:28:CA Sonos, Inc.
+94:9F:3E Sonos, Inc.
+B8:E9:37 Sonos, Inc.
+00:1C:F0 D-Link Corporation
+00:1E:58 D-Link Corporation
+14:D6:4D D-Link Corporation
+1C:7E:E5 D-Link Corporation
+28:10:7B D-Link Corporation
+78:54:2E D-Link Corporation
+B8:A3:86 D-Link Corporation
+C8:BE:19 D-Link Corporation
+F0:7D:68 D-Link Corporation
+00:1D:D8 Microsoft Corporation
+28:18:78 Microsoft Corporation
+7C:1E:52 Microsoft Corporation
+C8:3F:26 Microsoft Corporation
+00:1A:79 Research In Motion (BlackBerry)
+00:0F:B3 Actiontec Electronics
+00:26:37 Samsung Electronics
+2C:44:01 Samsung Electronics
+8C:77:12 Samsung Electronics
+B4:79:A7 Samsung Electronics
+E8:50:8B Samsung Electronics
+
+# --- virtualisation and containers ------------------------------------------
+# (Docker/Kubernetes prefixes such as 02:42:xx and 0a:58:xx are locally
+#  administered, so the lookup labels them "Randomised" before consulting this
+#  table - that is intentional and matches how those interfaces behave.)
+00:15:5D Microsoft Corporation (Hyper-V)
+52:54:00 QEMU virtual NIC
+
+# --- cyberdeck-relevant SDR / RF / hardware ---------------------------------
+00:0D:8C Nooelec (RTL-SDR dongles)
+00:1D:50 RTL2832U DVB-T receiver (generic)
+00:1D:1E Realtek RTL8187 Wireless Adapter
+00:0C:43 MediaTek (Ralink) RT73 USB
+00:13:EF Realtek RTL8187B Wireless Adapter
+00:1A:EF Realtek RTL8187 Wireless Adapter
+38:1C:1A Alfa Network Inc.
+00:C0:CA Alfa Network Inc.
+20:4E:7F Alfa Network Inc.
+94:0C:6D TP-Link (TL-WN722N v1 - Atheros AR9271)
+EC:08:6B TP-Link (TL-WN722N v1 - Atheros AR9271)
+74:DA:38 Edimax Technology (EW-7811Un)
+80:1F:02 Edimax Technology
+00:C0:CA Alfa Network (AWUS036NHA/ACH)
+24:A4:3C Proxmark3 / RDV4 (typical USB serial)
+
+# --- industrial, automotive, and IoT worth knowing about --------------------
+00:80:F4 Telegesis (Zigbee modules)
+00:12:4B Texas Instruments (CC2531 Zigbee sniffer)
+00:1C:BF Continental Automotive
+00:23:76 Bosch Automotive
+5C:F8:21 Texas Instruments (Zigbee/6LoWPAN)
+00:0D:6F Ember Corporation (Zigbee)
+C0:98:E5 Motorola Solutions (Zigbee)
+00:0B:57 Silicon Laboratories
+00:1E:C0 Microchip Technology (Zigbee)
+F4:B8:5E Texas Instruments (SimpleLink)

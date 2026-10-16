@@ -1,0 +1,32 @@
+# =============================================================================
+# cyberdeck-arsenal :: mac-rotator.timer
+# =============================================================================
+# Schedules mac-rotator.service. The exact interval is read from
+# mac_rotation.interval in cyberdeck.conf by the service itself; the timer uses
+# a 1 hour default here so the schedule survives a config typo.
+#
+# Enable  : sudo systemctl enable --now mac-rotator.timer
+# Inspect : systemctl list-timers mac-rotator.timer
+# Disable : sudo systemctl disable --now mac-rotator.timer
+#
+# Privacy note: rotate too aggressively and a network operator sees a stream of
+# new MACs, which is itself a signature. 30-60 minutes is the usual compromise.
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal scheduled MAC address rotation
+Documentation=file:/opt/cyberdeck-arsenal/docs/CONFIGURATION.md
+
+[Timer]
+# First rotation 2 minutes after boot (interfaces need time to settle)
+OnBootSec=2min
+# Then hourly; edit this line to change the cadence
+OnUnitActiveSec=1h
+# Randomise the start slightly so the pattern is not trivially predictable
+RandomizedDelaySec=300
+# Do not fire a burst of rotations after resume from suspend
+Persistent=false
+AccuracySec=30s
+Unit=mac-rotator.service
+
+[Install]
+WantedBy=timers.target
