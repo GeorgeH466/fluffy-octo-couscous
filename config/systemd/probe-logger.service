@@ -1,0 +1,59 @@
+# =============================================================================
+# cyberdeck-arsenal :: probe-logger.service
+# =============================================================================
+# Passive WiFi probe-request logging. Puts the monitor-capable interface into
+# monitor mode (if it is not already), hops channels, and records every probe
+# request into data/probes.db with vendor lookup and signal strength.
+#
+# Deployment note: probe requests are personal data in many jurisdictions
+# (UK GDPR / EU GDPR). Only run this where you have a lawful basis.
+#
+# Start  : sudo systemctl start probe-logger.service
+# Python : uses the venv interpreter when present, else /usr/bin/python3
+# Logs   : journalctl -u probe-logger -f
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal passive WiFi probe request logger
+Documentation=file:/opt/cyberdeck-arsenal/docs/LEGAL.md
+After=network.target
+ConditionPathExists=/opt/cyberdeck-arsenal/recon/passive/wifi_probe_logger.py
+# Never run at the same time as the self-destruct flush
+Conflicts=cyberdeck-panic.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/cyberdeck-arsenal
+Environment=PYTHONUNBUFFERED=1
+Environment=CYBERDECK_INSTALL_DIR=/opt/cyberdeck-arsenal
+Environment=PYTHONPATH=/opt/cyberdeck-arsenal/lib
+ExecStart=/bin/sh -c 'PY=/opt/cyberdeck-arsenal/venv/bin/python; [ -x "$PY" ] || PY=/usr/bin/python3; exec "$PY" /opt/cyberdeck-arsenal/recon/passive/wifi_probe_logger.py --continuous --from-service'
+Restart=on-failure
+RestartSec=30
+StartLimitBurst=3
+StartLimitIntervalSec=300
+
+StandardOutput=append:/opt/cyberdeck-arsenal/logs/probe-logger.log
+StandardError=append:/opt/cyberdeck-arsenal/logs/probe-logger.log
+SyslogIdentifier=probe-logger
+Nice=10
+CPUWeight=40
+MemoryMax=256M
+TimeoutStopSec=15
+
+# Raw socket access is required for monitor mode and packet capture
+NoNewPrivileges=yes
+ProtectHome=read-only
+ProtectSystem=full
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

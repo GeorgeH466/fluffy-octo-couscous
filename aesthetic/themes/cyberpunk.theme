@@ -1,0 +1,69 @@
+# =============================================================================
+# cyberpunk.theme - neon-night default deck skin
+# =============================================================================
+# Consumed by aesthetic/theme_switcher.sh (and read by the HUD and conky).
+# Format: shell-sourceable KEY=value pairs. Everything after the first '=' is
+# the value, so quotes are optional but must match if used.
+#
+# Colours are true-colour hex values; the switcher degrades them to 256-colour
+# or 16-colour equivalents automatically when TERM does not support RGB.
+# =============================================================================
+
+THEME_NAME=cyberpunk
+THEME_TITLE=Cyberpunk
+THEME_DESCRIPTION=Neon night ops: acid green on deep blue-black with hot pink accents
+
+# -- palette ------------------------------------------------------------------
+THEME_PRIMARY=#39ff14
+THEME_SECONDARY=#00d9ff
+THEME_ACCENT=#ff2e88
+THEME_WARNING=#ffb000
+THEME_ERROR=#ff3355
+THEME_OK=#39ff14
+THEME_DIM=#5f8f96
+THEME_BACKGROUND=#0b0f14
+THEME_FOREGROUND=#c7f9ff
+# Colour for the shell prompt host segment
+THEME_PROMPT_HOST=#ff2e88
+THEME_PROMPT_PATH=#00d9ff
+
+# -- terminal -----------------------------------------------------------------
+# OSC sequences applied by `theme_switcher.sh --set cyberpunk`
+THEME_TERM_BG=#0b0f14
+THEME_TERM_FG=#c7f9ff
+THEME_CURSOR=#39ff14
+# tmux status bar
+THEME_TMUX_STATUS_BG=#0b0f14
+THEME_TMUX_STATUS_FG=#39ff14
+THEME_TMUX_ACTIVE_BG=#39ff14
+THEME_TMUX_ACTIVE_FG=#0b0f14
+
+# -- conky --------------------------------------------------------------------
+THEME_CONKY_COLOUR=39ff14
+THEME_CONKY_WARN_COLOUR=ffb000
+THEME_CONKY_CRIT_COLOUR=ff3355
+
+# -- MOTD ---------------------------------------------------------------------
+THEME_MOTD_TAGLINE="night city rules: log everything, trust nothing"
+THEME_MOTD_BANNER='
+   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+   ██ ▄▄▄ ██ ▄▄▄ ██ ▄▄▄▄▄ ██ ▄▄▄▄▄▄ ▄▄▄▄▄▄ ▄▄▄▄▄ ██ ▄▄▄ ██
+   ██ ███ ██ ███ ██ ██▄▄  ██ ██▄▄   ██ ██▄▄ ██▄▄  ██ ███ ██
+   ▀▀ ▀▀▀ ▀▀ ▀▀▀ ▀▀ ▀▀▀▀▀ ▀▀ ▀▀▀▀▀▀ ▀▀ ▀▀▀▀▀ ▀▀▀▀▀ ▀▀ ▀▀▀ ▀▀
+'
+
+# -- splash -------------------------------------------------------------------
+THEME_SPLASH_ART='
+                 ██████╗██╗   ██╗██████╗ ███████╗██████╗ ██████╗ ███████╗ ██████╗██╗  ██╗
+                ██╔════╝╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝██╔════╝██║ ██╔╝
+                ██║      ╚████╔╝ ██████╔╝█████╗  ██║  ██║██║  ██║█████╗  ██║     █████╔╝
+                ██║       ╚██╔╝  ██╔══██╗██╔══╝  ██║  ██║██║  ██║██╔══╝  ██║     ██╔═██╗
+                ╚██████╗   ██║   ██████╔╝███████╗██████╔╝██████╔╝███████╗╚██████╗██║  ██╗
+                 ╚═════╝   ╚═╝   ╚═════╝ ╚══════╝╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝
+                              a r s e n a l   ·   t h e   d e c k   i s   o n l i n e
+'
+THEME_SPLASH_TAGLINE="initialising sensors · arming receivers · waking the HUD"
+
+# -- misc ---------------------------------------------------------------------
+# Commands the switcher runs after applying this theme (space separated, may be empty)
+THEME_POST_HOOKS=""

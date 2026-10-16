@@ -1,0 +1,12 @@
+{
+  "_comment": "Capcode labels for sdr/pager_decoder.py. Keys are either an exact capcode as a string (\"1234567\") or an inclusive range (\"2010000-2019999\"). Non-numeric keys such as this one are ignored. The labels below are examples - replace them with the capcodes you identify during an authorised survey (use 'cdeck sdr pager --write' to collect them first).",
+  "_usage": "sudo cp pager_capcodes.json /opt/cyberdeck-arsenal/data/ && cdeck sdr pager --frequency 153.35",
+
+  "1230000-1230999": "example: site-1 fire panel pagers",
+  "1240000-1240499": "example: building management",
+  "2000000-2000999": "example: staff alpha-numeric",
+  "3000000-3000099": "example: lone-worker check-in",
+
+  "1000001": "example: switchboard",
+  "1000100": "example: on-call engineer"
+}

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime data that must never be committed (may contain engagement secrets)
+logs/
+captures/
+reports/
+profiles/
+vault/
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/oui_database.txt.gz
+data/wordlists/*.txt
+data/wordlists/*.lst
+!data/wordlists/download_wordlists.sh
+data/rf/
+*.handshake
+*.pmkid
+*.pcapng
+*.cap
+*.pcap
+*.kismet
+*.netxml
+*.gnmap
+*.xml.bak
+
+# Editor / OS noise
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/
+
+# Local secrets
+cyberdeck.conf.local
+*.key
+*.pem
+!data/templates/*.pem
+.env

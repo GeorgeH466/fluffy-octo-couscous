@@ -1,0 +1,597 @@
+#!/usr/bin/env bash
+# =============================================================================
+# cyberdeck-arsenal :: cdeck - main command-line entry point
+# =============================================================================
+#
+# Description
+# -----------
+# Single front door for the whole suite. Every module is reachable from here,
+# so an operator never needs to remember a path or a flag combination.
+#
+# Author      : cyberdeck-arsenal contributors
+# Version     : 1.0.0
+# Dependencies: bash>=5, python3; suite modules under $CDECK_INSTALL_DIR
+# Licence     : MIT. Authorised use only - see docs/LEGAL.md
+#
+# Usage
+# -----
+#   cdeck                     # launch the HUD (same as `cdeck dashboard`)
+#   cdeck status              # hardware + system status
+#   cdeck scan <target>       # quick network scan
+#   cdeck profile <target>    # full target profile
+#   cdeck wifi                # WiFi arsenal menu
+#   cdeck vault               # encrypted notes vault
+#   cdeck panic               # emergency cleanup
+#   cdeck config              # edit cyberdeck.conf
+#   cdeck update              # update tools, wordlists and databases
+#   cdeck help                # full command list
+#
+# =============================================================================
+
+set -uo pipefail
+
+CDECK_VERSION="1.0.0"
+INSTALL_DIR="${CYBERDECK_INSTALL_DIR:-/opt/cyberdeck-arsenal}"
+LIB_DIR="${INSTALL_DIR}/lib"
+[ -d "${LIB_DIR}" ] || LIB_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib" && pwd)"
+CDECK_PYTHON="${INSTALL_DIR}/venv/bin/python"
+[ -x "${CDECK_PYTHON}" ] || CDECK_PYTHON="$(command -v python3)"
+
+# shellcheck source=lib/cyberdeck_common.sh
+if [[ -f "${LIB_DIR}/cyberdeck_common.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${LIB_DIR}/cyberdeck_common.sh"
+else
+    echo "cyberdeck-arsenal: shared library not found at ${LIB_DIR}" >&2
+    echo "run the installer first: sudo ./setup.sh" >&2
+    exit 1
+fi
+
+cdeck::init "cdeck"
+
+# --------------------------------------------------------------------------- #
+# Help
+# --------------------------------------------------------------------------- #
+usage() {
+    cat <<EOF
+${C_BOLD}cyberdeck-arsenal ${CDECK_VERSION}${C_RESET} - ${C_DIM}operations suite for BlackArch cyberdecks${C_RESET}
+
+${C_BOLD}USAGE${C_RESET}
+  cdeck [command] [arguments]
+
+${C_BOLD}CORE COMMANDS${C_RESET}
+  dashboard, hud, deck     Launch the main HUD dashboard
+  status                   Hardware, service and configuration summary
+  config [section.key[=v]] Open the configuration (or read/set one key)
+  update [--no-wordlists]  Update databases, wordlists and threat feeds
+  doctor                   Diagnose installation and hardware problems
+  help, --help             This help
+
+${C_BOLD}RECON${C_RESET}
+  scan <target> [profile]  Quick network scan (stealth|aggressive|vuln|udp|full)
+  profile <target> [depth] Full target profile (quick|standard|deep)
+  web <url>                Web application reconnaissance
+  osint <domain|name>      OSINT collection (emails, domains, usernames)
+  packets [interface]      Live packet weather visualisation
+  nmap <args...>           Network scanning presets
+  arp                      Passive ARP landscape map
+  probes                   WiFi probe request logger
+  ble                      Continuous BLE enumeration
+  services                 Passive service discovery (mDNS/SSDP/LLMNR)
+  rogue                    Rogue AP detector against the saved baseline
+
+${C_BOLD}ATTACK${C_RESET} ${C_YELLOW}(authorised targets only)${C_RESET}
+  wifi                     WiFi arsenal menu (scan/handshake/PMKID/evil twin)
+  responder                Responder credential capture launcher
+  mitm                     MITM toolkit (ARP/DNS spoof, SSL strip)
+  payloads                 Payload hosting server with download tracking
+
+${C_BOLD}SDR${C_RESET}
+  sdr [start] [end] [MHz]  SDR frequency scanner
+  rf                       Live RF spectrum display
+  adsb                     ADS-B aircraft tracking
+  pager                    POCSAG/FLEX pager decoder
+  tpms                     TPMS tyre pressure monitor reader
+  keyfob                   RF keyfob signal analyser
+
+${C_BOLD}UTILITIES${C_RESET}
+  mac [args]               MAC address rotator
+  vpn <rotate|tor|wg|off>  VPN/Tor switching with leak verification
+  vault [list|new|edit]    GPG-encrypted notes vault
+  usb                      USB device handler status and actions
+  profiles <sub>           Network profile manager (save/load/switch)
+  hardware                 Detailed hardware inventory and capabilities
+  triggers                 Event-driven automation engine
+  schedule <list|run>      Task scheduler
+  keybinds [install]       Global hotkeys / macro pad setup
+  report <dir> [--html]    Generate reports from an engagement directory
+  hash <file|dir>          Chain-of-custody hashing and verification
+  theme <name>             Apply a terminal theme (cyberpunk|stealth|matrix)
+  decoy [mode]             Social camouflage screens
+  splash                   Boot splash / status display
+
+${C_BOLD}EMERGENCY${C_RESET}
+  panic [--force]          ${C_RED}Self-destruct: kill processes, wipe captures, randomise MACs${C_RESET}
+
+${C_BOLD}EXAMPLES${C_RESET}
+  cdeck                               # HUD
+  cdeck scan 192.168.1.0/24 vuln
+  cdeck profile example.com deep
+  cdeck wifi
+  sudo cdeck vpn rotate
+  cdeck config api_keys.shodan=abc123
+  sudo cdeck panic
+
+${C_DIM}Full documentation: ${INSTALL_DIR}/docs/QUICKSTART.md${C_RESET}
+${C_YELLOW}⚠  Authorised use only${C_RESET} - ${C_DIM}${INSTALL_DIR}/docs/LEGAL.md${C_RESET}
+EOF
+}
+
+# --------------------------------------------------------------------------- #
+# Internal helpers
+# --------------------------------------------------------------------------- #
+find_module() {
+    # find_module <relative-path> [extra:--python] -> prints the path or nothing
+    local rel="$1"
+    local candidates=("${INSTALL_DIR}/${rel}" "${CDECK_REPO_DIR}/${rel}")
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        [[ -f "${candidate}" ]] && { printf '%s' "${candidate}"; return 0; }
+    done
+    return 1
+}
+
+run_python() {
+    # run_python <relative-path> [args...]
+    local rel="$1"; shift
+    local script
+    if ! script="$(find_module "${rel}")"; then
+        cdeck::error "module not found: ${rel} (is the suite installed?)"
+        cdeck::info "run: sudo ${INSTALL_DIR}/setup.sh"
+        return 1
+    fi
+    PYTHONPATH="${LIB_DIR}:${PYTHONPATH:-}" exec "${CDECK_PYTHON}" "${script}" "$@"
+}
+
+run_bash() {
+    # run_bash <relative-path> [args...]
+    local rel="$1"; shift
+    local script
+    if ! script="$(find_module "${rel}")"; then
+        cdeck::error "module not found: ${rel} (is the suite installed?)"
+        return 1
+    fi
+    exec bash "${script}" "$@"
+}
+
+need_root() {
+    # need_root <action-description>
+    if [[ "${EUID}" -ne 0 ]]; then
+        cdeck::error "$1 requires root: sudo cdeck ${CDECK_ORIG_ARGS:-$*}"
+        return 1
+    fi
+    return 0
+}
+
+# --------------------------------------------------------------------------- #
+# status
+# --------------------------------------------------------------------------- #
+cmd_status() {
+    cdeck::banner "cyberdeck-arsenal status" "v${CDECK_VERSION} - $(date '+%Y-%m-%d %H:%M:%S')"
+
+    # Installation
+    printf '\n%bInstallation%b\n' "${C_BOLD}" "${C_RESET}"
+    if [[ -d "${INSTALL_DIR}" ]]; then
+        printf '  %b✔%b install dir      %s\n' "${C_GREEN}" "${C_RESET}" "${INSTALL_DIR}"
+    else
+        printf '  %b✘%b install dir      %s (missing - run setup.sh)\n' "${C_RED}" "${C_RESET}" "${INSTALL_DIR}"
+    fi
+    if [[ -f "${CDECK_CONFIG}" ]]; then
+        printf '  %b✔%b configuration    %s\n' "${C_GREEN}" "${C_RESET}" "${CDECK_CONFIG}"
+    else
+        printf '  %b!%b configuration    not found - defaults in use\n' "${C_YELLOW}" "${C_RESET}"
+    fi
+    if [[ -x "${CDECK_PYTHON}" ]]; then
+        printf '  %b✔%b python venv      %s (%s)\n' "${C_GREEN}" "${C_RESET}" "${CDECK_PYTHON}" \
+            "$("${CDECK_PYTHON}" --version 2>&1)"
+    else
+        printf '  %b!%b python venv      not found - using system python\n' "${C_YELLOW}" "${C_RESET}"
+    fi
+    local steps=0
+    [[ -f "${INSTALL_DIR}/state/setup.state" ]] && steps="$(wc -l < "${INSTALL_DIR}/state/setup.state")"
+    printf '  %b•%b setup progress   %s/12 steps completed\n' "${C_CYAN}" "${C_RESET}" "${steps}"
+
+    # Python-library status when available
+    if "${CDECK_PYTHON}" -c "import sys; sys.path.insert(0,'${LIB_DIR}'); import cyberlib" 2>/dev/null; then
+        printf '\n%bHardware%b\n' "${C_BOLD}" "${C_RESET}"
+        PYTHONPATH="${LIB_DIR}" "${CDECK_PYTHON}" - <<'PYEOF'
+import sys
+try:
+    from cyberlib import Hardware, C
+except Exception as exc:
+    print(f"  cyberlib unavailable: {exc}")
+    sys.exit(0)
+colours = {"ok": "\033[32m", "absent": "\033[2m"}
+reset = "\033[0m"
+for component, state, detail in Hardware.summary():
+    marker = "✔" if state == "ok" else "·"
+    colour = colours.get(state, "")
+    print(f"  {colour}{marker}{reset} {component:<16} {detail}")
+PYEOF
+    else
+        printf '\n%bHardware%b\n' "${C_BOLD}" "${C_RESET}"
+        local iface
+        for iface in $(cdeck::wlan_interfaces); do
+            printf '  %b✔%b wlan             %s (mac %s, %s)\n' "${C_GREEN}" "${C_RESET}" "${iface}" \
+                "$(cdeck::iface_mac "${iface}")" "$(cdeck::iface_state "${iface}")"
+        done
+        [[ -z "$(cdeck::wlan_interfaces)" ]] && printf '  %b·%b wlan             none detected\n' "${C_DIM}" "${C_RESET}"
+        cdeck::sdr_present && printf '  %b✔%b sdr              receiver detected\n' "${C_GREEN}" "${C_RESET}" \
+            || printf '  %b·%b sdr              none detected\n' "${C_DIM}" "${C_RESET}"
+    fi
+
+    # Vitals
+    printf '\n%bSystem%b\n' "${C_BOLD}" "${C_RESET}"
+    printf '  %b•%b board            %s\n' "${C_CYAN}" "${C_RESET}" "$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "$(uname -m)")"
+    printf '  %b•%b kernel           %s\n' "${C_CYAN}" "${C_RESET}" "$(uname -r)"
+    printf '  %b•%b uptime           %s\n' "${C_CYAN}" "${C_RESET}" "$(uptime -p 2>/dev/null || uptime)"
+    printf '  %b•%b load             %s\n' "${C_CYAN}" "${C_RESET}" "$(cut -d' ' -f1-3 /proc/loadavg)"
+    printf '  %b•%b memory           %s\n' "${C_CYAN}" "${C_RESET}" "$(free -h 2>/dev/null | awk '/Mem:/ {printf "%s used of %s", $3, $2}')"
+    printf '  %b•%b disk (/)         %s\n' "${C_CYAN}" "${C_RESET}" "$(df -h / 2>/dev/null | awk 'NR==2 {printf "%s used of %s (%s)", $3, $2, $5}')"
+    printf '  %b•%b temperature      %s°C\n' "${C_CYAN}" "${C_RESET}" "$(cdeck::temperature)"
+    if battery="$(cdeck::battery_percent)"; then
+        printf '  %b•%b battery          %s%%\n' "${C_CYAN}" "${C_RESET}" "${battery}"
+    fi
+
+    # Services
+    printf '\n%bServices%b\n' "${C_BOLD}" "${C_RESET}"
+    if [[ -d /run/systemd/system ]]; then
+        local unit state
+        for unit in cyberdeck-monitor.service mac-rotator.timer probe-logger.service \
+                    ble-scanner.service rogue-ap-detector.service usb-watcher.service; do
+            if systemctl list-unit-files "${unit}" >/dev/null 2>&1 && systemctl is-enabled "${unit}" >/dev/null 2>&1; then
+                state="$(systemctl is-active "${unit}" 2>/dev/null || true)"
+                if [[ "${state}" == "active" ]]; then
+                    printf '  %b✔%b %-26s %s\n' "${C_GREEN}" "${C_RESET}" "${unit}" "${state}"
+                else
+                    printf '  %b·%b %-26s %s\n' "${C_DIM}" "${C_RESET}" "${unit}" "${state:-inactive}"
+                fi
+            else
+                printf '  %b·%b %-26s not installed\n' "${C_DIM}" "${C_RESET}" "${unit}"
+            fi
+        done
+    else
+        printf '  %b·%b systemd not running\n' "${C_DIM}" "${C_RESET}"
+    fi
+
+    # Connectivity / anonymity
+    printf '\n%bNetwork posture%b\n' "${C_BOLD}" "${C_RESET}"
+    cdeck::have_connectivity && printf '  %b✔%b internet         reachable\n' "${C_GREEN}" "${C_RESET}" \
+        || printf '  %b✘%b internet         unreachable\n' "${C_RED}" "${C_RESET}"
+    printf '  %b•%b default route    %s\n' "${C_CYAN}" "${C_RESET}" "$(cdeck::default_iface | sed 's/^$/none/')"
+    if pgrep -x tor >/dev/null 2>&1; then
+        printf '  %b✔%b tor              running\n' "${C_GREEN}" "${C_RESET}"
+    else
+        printf '  %b·%b tor              not running\n' "${C_DIM}" "${C_RESET}"
+    fi
+    if ip link show type wireguard >/dev/null 2>&1; then
+        printf '  %b✔%b wireguard        %s\n' "${C_GREEN}" "${C_RESET}" "$(ip link show type wireguard 2>/dev/null | awk -F': ' '/^[0-9]/ {print $2}' | tr '\n' ' ')"
+    else
+        printf '  %b·%b wireguard        no tunnel\n' "${C_DIM}" "${C_RESET}"
+    fi
+
+    # Recent alerts
+    local alerts_db="${INSTALL_DIR}/data/alerts.db"
+    if [[ -f "${alerts_db}" ]] && cdeck::has_cmd sqlite3; then
+        printf '\n%bRecent alerts%b\n' "${C_BOLD}" "${C_RESET}"
+        local rows
+        rows="$(sqlite3 -separator ' | ' "${alerts_db}" \
+            "SELECT ts, severity, title FROM alerts ORDER BY ts DESC LIMIT 8;" 2>/dev/null || true)"
+        if [[ -n "${rows}" ]]; then
+            while IFS= read -r line; do printf '  %b•%b %s\n' "${C_CYAN}" "${C_RESET}" "${line}"; done <<< "${rows}"
+        else
+            printf '  %b·%b feed empty (alerts appear here as they fire)\n' "${C_DIM}" "${C_RESET}"
+        fi
+    fi
+
+    printf '\n'
+    return 0
+}
+
+# --------------------------------------------------------------------------- #
+# config / update / doctor
+# --------------------------------------------------------------------------- #
+cmd_config() {
+    local arg="${1:-}"
+    if [[ -z "${arg}" ]]; then
+        cdeck::info "opening ${CDECK_CONFIG} in ${EDITOR:-nano}"
+        [[ -f "${CDECK_CONFIG}" ]] || cdeck::die "no configuration file at ${CDECK_CONFIG}"
+        exec "${EDITOR:-nano}" "${CDECK_CONFIG}"
+    fi
+    if [[ "${arg}" == *=* ]]; then
+        local key="${arg%%=*}" value="${arg#*=}"
+        cdeck::conf_set "${key}" "${value}" || return 1
+        return 0
+    fi
+    if [[ "${arg}" == *.* ]]; then
+        local value
+        value="$(cdeck::conf_get "${arg}" "__unset__")"
+        if [[ "${value}" == "__unset__" ]]; then
+            cdeck::warn "key not present in ${CDECK_CONFIG}: ${arg}"
+            return 1
+        fi
+        printf '%s = %s\n' "${arg}" "${value}"
+        return 0
+    fi
+    # Section dump
+    cdeck::info "values in section '${arg}'"
+    grep -A500 "^${arg}:" "${CDECK_CONFIG}" 2>/dev/null | awk '/^[a-z_]+:/ && NR>1 {exit} {print}' | head -60
+}
+
+cmd_update() {
+    local skip_wordlists=0
+    for arg in "$@"; do
+        [[ "${arg}" == "--no-wordlists" ]] && skip_wordlists=1
+    done
+
+    cdeck::banner "update" "databases, threat feeds, wordlists and tools"
+
+    if ! cdeck::require_connectivity; then
+        cdeck::error "no connectivity - updates require internet access"
+        return 1
+    fi
+
+    # 1. OUI database
+    cdeck::info "[1/6] refreshing the MAC vendor (OUI) database"
+    local oui="${INSTALL_DIR}/data/oui_database.txt"
+    mkdir -p "$(dirname "${oui}")"
+    if curl -sSfL -m 120 -o "${oui}.tmp" https://standards-oui.ieee.org/oui/oui.txt 2>/dev/null; then
+        awk '/\(hex\)/ {gsub(/\(hex\)/,""); print $1, substr($0, index($0,$4))}' "${oui}.tmp" > "${oui}" \
+            || cp "${oui}.tmp" "${oui}"
+        rm -f "${oui}.tmp"
+        cdeck::ok "OUI database updated ($(wc -l < "${oui}") entries)"
+    elif curl -sSfL -m 120 -o "${oui}.tmp" https://www.wireshark.org/download/automated/data/manuf 2>/dev/null; then
+        grep -vE '^\s*#' "${oui}.tmp" | awk '{print $1, substr($0, index($0,$2))}' > "${oui}"
+        rm -f "${oui}.tmp"
+        cdeck::ok "OUI database updated from the Wireshark manuf registry"
+    else
+        cdeck::warn "OUI download failed - keeping the existing database"
+    fi
+
+    # 2. BLE vulnerability database
+    cdeck::info "[2/6] refreshing the BLE vulnerability database"
+    local ble_db="${INSTALL_DIR}/data/ble_vulnerability_db.json"
+    if [[ -f "${CDECK_REPO_DIR}/data/ble_vulnerability_db.json" && ! -f "${ble_db}" ]]; then
+        cp -f "${CDECK_REPO_DIR}/data/ble_vulnerability_db.json" "${ble_db}"
+        cdeck::ok "BLE vulnerability database installed"
+    else
+        cdeck::ok "BLE vulnerability database present ($(jq '.devices | length' "${ble_db}" 2>/dev/null || echo '?') entries)"
+    fi
+
+    # 3. Threat feeds
+    cdeck::info "[3/6] warming the OSINT threat feed cache"
+    if PYTHONPATH="${LIB_DIR}" "${CDECK_PYTHON}" -c "
+import sys
+try:
+    sys.path.insert(0, '${INSTALL_DIR}/dashboard')
+    from threat_ticker import ThreatTicker
+    t = ThreatTicker()
+    items = t.fetch_all(force=True)
+    print(len(items))
+except Exception as exc:
+    print('skip:', exc); sys.exit(0)
+" 2>/dev/null; then
+        cdeck::ok "threat feed cache refreshed"
+    else
+        cdeck::warn "threat feeds unavailable (configure api_keys in cyberdeck.conf)"
+    fi
+
+    # 4. Wordlists
+    if (( skip_wordlists == 1 )); then
+        cdeck::info "[4/6] wordlists skipped (--no-wordlists)"
+    else
+        cdeck::info "[4/6] updating wordlists"
+        if [[ -x "${INSTALL_DIR}/data/wordlists/download_wordlists.sh" ]]; then
+            bash "${INSTALL_DIR}/data/wordlists/download_wordlists.sh" --update-only \
+                && cdeck::ok "wordlists updated" || cdeck::warn "wordlist update reported problems"
+        else
+            cdeck::warn "download_wordlists.sh not found - skipping"
+        fi
+    fi
+
+    # 5. Tool updates
+    cdeck::info "[5/6] checking for package updates"
+    if [[ "${EUID}" -eq 0 ]]; then
+        pacman -Sy --noconfirm >/dev/null 2>&1 || cdeck::warn "pacman database refresh failed"
+        local upgradable
+        upgradable="$(pacman -Qu 2>/dev/null | wc -l)"
+        cdeck::ok "${upgradable} package update(s) available (run: sudo pacman -Syu)"
+    else
+        cdeck::warn "not root - skipping pacman database refresh"
+    fi
+
+    # 6. Maintenance: prune old rows, rotate logs
+    cdeck::info "[6/6] maintenance (database pruning, log rotation)"
+    local retention
+    retention="$(cdeck::conf_get monitoring.retention_days 30)"
+    local db
+    for db in events probes arp services; do
+        if [[ -f "${INSTALL_DIR}/data/${db}.db" ]] && cdeck::has_cmd sqlite3; then
+            local table="events"
+            case "${db}" in
+                probes) table="probe_requests" ;;
+                arp)    table="arp_hosts" ;;
+                services) table="services" ;;
+            esac
+            sqlite3 "${INSTALL_DIR}/data/${db}.db" \
+                "DELETE FROM ${table} WHERE ts < datetime('now', '-${retention} days');" 2>/dev/null || true
+        fi
+    done
+    cdeck::ok "maintenance complete (retention: ${retention} days)"
+    cdeck::info "log rotation is handled by /etc/logrotate.d/cyberdeck-arsenal"
+    return 0
+}
+
+cmd_doctor() {
+    cdeck::banner "doctor" "diagnosing the installation"
+    local problems=0
+
+    check() {
+        # check <description> <command...>
+        local description="$1"; shift
+        if "$@" >/dev/null 2>&1; then
+            printf '  %b✔%b %s\n' "${C_GREEN}" "${C_RESET}" "${description}"
+        else
+            printf '  %b✘%b %s\n' "${C_RED}" "${C_RESET}" "${description}"
+            problems=$(( problems + 1 ))
+        fi
+    }
+    check "install directory present" test -d "${INSTALL_DIR}"
+    check "configuration readable" test -r "${CDECK_CONFIG}"
+    check "shared bash library present" test -f "${LIB_DIR}/cyberdeck_common.sh"
+    check "shared python library present" test -f "${LIB_DIR}/cyberlib.py"
+    check "python venv executable" test -x "${CDECK_PYTHON}"
+    check "cdeck on PATH" bash -c 'command -v cdeck'
+    check "logs directory writable" test -w "${INSTALL_DIR}/logs"
+    check "data directory present" test -d "${INSTALL_DIR}/data"
+
+    printf '\n  %bOptional components%b\n' "${C_BOLD}" "${C_RESET}"
+    local -a optional=(tshark nmap aircrack-ng bettercap responder airmon-ng hashcat john sqlmap nuclei whatweb sqlite3 jq)
+    local tool
+    for tool in "${optional[@]}"; do
+        if command -v "${tool}" >/dev/null 2>&1; then
+            printf '  %b✔%b %s\n' "${C_GREEN}" "${C_RESET}" "${tool}"
+        else
+            printf '  %b·%b %s (missing - related features degrade gracefully)\n' "${C_DIM}" "${C_RESET}" "${tool}"
+        fi
+    done
+
+    printf '\n  %bPython modules%b\n' "${C_BOLD}" "${C_RESET}"
+    local module
+    for module in rich textual scapy bleak requests flask psutil yaml; do
+        if "${CDECK_PYTHON}" -c "import ${module}" >/dev/null 2>&1; then
+            printf '  %b✔%b %s\n' "${C_GREEN}" "${C_RESET}" "${module}"
+        else
+            printf '  %b·%b %s (not installed)\n' "${C_DIM}" "${C_RESET}" "${module}"
+        fi
+    done
+
+    printf '\n  %bDatabases%b\n' "${C_BOLD}" "${C_RESET}"
+    local db
+    for db in events probes ble arp services baseline usb alerts; do
+        if [[ -f "${INSTALL_DIR}/data/${db}.db" ]]; then
+            printf '  %b✔%b %s.db (%s)\n' "${C_GREEN}" "${C_RESET}" "${db}" \
+                "$(du -h "${INSTALL_DIR}/data/${db}.db" 2>/dev/null | cut -f1)"
+        else
+            printf '  %b·%b %s.db (created on first use)\n' "${C_DIM}" "${C_RESET}" "${db}"
+        fi
+    done
+
+    printf '\n'
+    if (( problems == 0 )); then
+        cdeck::ok "no blocking problems found"
+    else
+        cdeck::warn "${problems} problem(s) found - run 'sudo ${INSTALL_DIR}/setup.sh --resume'"
+    fi
+    return $(( problems > 0 ? 1 : 0 ))
+}
+
+# --------------------------------------------------------------------------- #
+# Dispatch
+# --------------------------------------------------------------------------- #
+main() {
+    # Keep the original argument string for helpful error messages
+    export CDECK_ORIG_ARGS="$*"
+    local command="${1:-dashboard}"
+    [[ $# -gt 0 ]] && shift
+
+    case "${command}" in
+        # -- core ------------------------------------------------------------
+        dashboard|hud|deck|"")   run_python "dashboard/main_hud.py" "$@" ;;
+        status|st)               cmd_status ;;
+        config|conf)             cmd_config "$@" ;;
+        update)                  cmd_update "$@" ;;
+        doctor)                  cmd_doctor ;;
+        help|--help|-h)          usage ;;
+        version|--version|-V)    echo "cyberdeck-arsenal ${CDECK_VERSION}" ;;
+
+        # -- recon -----------------------------------------------------------
+        scan)
+            [[ $# -ge 1 ]] || { cdeck::error "usage: cdeck scan <target> [stealth|aggressive|vuln|udp|full]"; exit 2; }
+            need_root "scanning" || exit 1
+            run_bash "recon/active/network_scanner.sh" "$@" ;;
+        nmap)                    run_bash "recon/active/network_scanner.sh" custom "$@" ;;
+        profile)
+            [[ $# -ge 1 ]] || { cdeck::error "usage: cdeck profile <target> [quick|standard|deep]"; exit 2; }
+            run_bash "recon/active/target_profiler.sh" "$@" ;;
+        web)
+            [[ $# -ge 1 ]] || { cdeck::error "usage: cdeck web <url>"; exit 2; }
+            run_bash "recon/active/web_recon.sh" "$@" ;;
+        osint)
+            [[ $# -ge 1 ]] || { cdeck::error "usage: cdeck osint <domain|username|email>"; exit 2; }
+            run_python "recon/active/osint_gatherer.py" "$@" ;;
+        packets|packet-weather)  run_python "dashboard/packet_weather.py" "$@" ;;
+        arp|map)                 run_python "recon/passive/arp_mapper.py" "$@" ;;
+        probes)                  run_python "recon/passive/wifi_probe_logger.py" "$@" ;;
+        ble)                     run_python "recon/passive/ble_scanner.py" "$@" ;;
+        services|mdns)           run_python "recon/passive/service_watcher.py" "$@" ;;
+        rogue)                   run_python "recon/passive/rogue_ap_detector.py" "$@" ;;
+        netmap|topology)         run_python "dashboard/network_map.py" "$@" ;;
+        threats|ticker)          run_python "dashboard/threat_ticker.py" "$@" ;;
+
+        # -- reporting -------------------------------------------------------
+        report)                  run_python "recon/reporting/report_generator.py" "$@" ;;
+        hash|evidence)           run_python "recon/reporting/evidence_hasher.py" "$@" ;;
+
+        # -- attack ----------------------------------------------------------
+        wifi)                    need_root "the WiFi arsenal" || exit 1
+                                 run_bash "attack/wifi_arsenal.sh" "$@" ;;
+        responder)               need_root "responder" || exit 1
+                                 run_bash "attack/responder_launcher.sh" "$@" ;;
+        mitm)                    need_root "MITM tooling" || exit 1
+                                 run_bash "attack/mitm_toolkit.sh" "$@" ;;
+        payloads|payload)        run_python "attack/payload_server.py" "$@" ;;
+
+        # -- sdr -------------------------------------------------------------
+        sdr)                     run_python "sdr/sdr_scanner.py" "$@" ;;
+        rf|spectrum)             run_python "dashboard/rf_spectrum.py" "$@" ;;
+        adsb)                    run_python "sdr/adsb_tracker.py" "$@" ;;
+        pager)                   run_python "sdr/pager_decoder.py" "$@" ;;
+        tpms)                    run_python "sdr/tpms_monitor.py" "$@" ;;
+        keyfob)                  run_python "sdr/keyfob_analyzer.py" "$@" ;;
+
+        # -- utilities -------------------------------------------------------
+        mac|rotate-mac)          need_root "MAC rotation" || exit 1
+                                 run_python "utilities/mac_rotator.py" "$@" ;;
+        vpn)                     need_root "VPN switching" || exit 1
+                                 run_bash "utilities/vpn_switcher.sh" "$@" ;;
+        vault)                   run_bash "utilities/encrypted_vault.sh" "$@" ;;
+        usb)                     run_python "utilities/usb_handler.py" "$@" ;;
+        profiles|netprofiles)    run_bash "utilities/network_profile_manager.sh" "$@" ;;
+        hardware|hw)             run_bash "utilities/hardware_detect.sh" "$@" ;;
+        triggers)                run_python "automation/triggers.py" "$@" ;;
+        schedule|scheduler)      run_python "automation/scheduler.py" "$@" ;;
+        keybinds)                run_bash "automation/keybinds.sh" "$@" ;;
+        theme)                   run_bash "aesthetic/theme_switcher.sh" "$@" 2>/dev/null \
+                                     || cdeck::error "theme_switcher.sh not found (run setup.sh again)" ;;
+        decoy)                   run_bash "aesthetic/decoy/hollywood_mode.sh" "$@" ;;
+        fake-desktop)            run_bash "aesthetic/decoy/fake_desktop.sh" "$@" ;;
+        splash)                  run_bash "aesthetic/boot_splash.sh" "$@" ;;
+        led)                     run_python "gpio/led_controller.py" "$@" ;;
+        oled)                    run_python "gpio/oled_display.py" "$@" ;;
+        buttons)                 run_python "gpio/button_handler.py" "$@" ;;
+
+        # -- emergency -------------------------------------------------------
+        panic|self-destruct)
+            need_root "the self-destruct routine" || exit 1
+            cdeck::alert "self-destruct requested - see docs/LEGAL.md for retention duties"
+            run_bash "utilities/self_destruct.sh" "$@" ;;
+
+        *)  cdeck::error "unknown command: ${command}"
+            printf '\n'
+            usage
+            exit 2 ;;
+    esac
+}
+
+main "$@"

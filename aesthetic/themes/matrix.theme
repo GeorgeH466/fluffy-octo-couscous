@@ -1,0 +1,60 @@
+# =============================================================================
+# matrix.theme - phosphor-green terminal skin
+# =============================================================================
+# Consumed by aesthetic/theme_switcher.sh. A single-hue green phosphor look for
+# CRT-style monitors, with the full palette derived from one colour so it stays
+# readable on tiny panels.
+# =============================================================================
+
+THEME_NAME=matrix
+THEME_TITLE=Matrix
+THEME_DESCRIPTION=Phosphor green: one hue, deep blacks, everything glows
+
+# -- palette ------------------------------------------------------------------
+THEME_PRIMARY=#00ff41
+THEME_SECONDARY=#00c832
+THEME_ACCENT=#7dff9b
+THEME_WARNING=#c8ff00
+THEME_ERROR=#ff2b2b
+THEME_OK=#00ff41
+THEME_DIM=#1f6b32
+THEME_BACKGROUND=#000600
+THEME_FOREGROUND=#b6ffc4
+THEME_PROMPT_HOST=#00ff41
+THEME_PROMPT_PATH=#00c832
+
+# -- terminal -----------------------------------------------------------------
+THEME_TERM_BG=#000600
+THEME_TERM_FG=#b6ffc4
+THEME_CURSOR=#00ff41
+THEME_TMUX_STATUS_BG=#000600
+THEME_TMUX_STATUS_FG=#00ff41
+THEME_TMUX_ACTIVE_BG=#00ff41
+THEME_TMUX_ACTIVE_FG=#000600
+
+# -- conky --------------------------------------------------------------------
+THEME_CONKY_COLOUR=00ff41
+THEME_CONKY_WARN_COLOUR=c8ff00
+THEME_CONKY_CRIT_COLOUR=ff2b2b
+
+# -- MOTD ---------------------------------------------------------------------
+THEME_MOTD_TAGLINE="wake up, operator: the deck has work to do"
+THEME_MOTD_BANNER='
+   01010100 01101000 01100101 00100000 01100100 01100101 01100011 01101011
+   01001001 01110011 00100000 01101111 01101110 01101100 01101001 01101110
+   01100101 00101110 00100000 01000011 01101000 01101111 01101111 01110011
+   ░▒▓█ K N O C K   K N O C K ,   O P E R A T O R █▓▒░
+'
+THEME_SPLASH_ART='
+        ███╗   ███╗ █████╗ ████████╗██████╗ ██╗██╗  ██╗
+        ████╗ ████║██╔══██╗╚══██╔══╝██╔══██╗██║╚██╗██╔╝
+        ██╔████╔██║███████║   ██║   ██████╔╝██║ ╚███╔╝
+        ██║╚██╔╝██║██╔══██║   ██║   ██╔══██╗██║ ██╔██╗
+        ██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║██╔╝ ██╗
+        ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
+            ░▒▓ follow the green ▓▒░   cyberdeck-arsenal
+'
+THEME_SPLASH_TAGLINE="entering the construct · loading receivers · nothing is real but the packets"
+
+# -- misc ---------------------------------------------------------------------
+THEME_POST_HOOKS=""
