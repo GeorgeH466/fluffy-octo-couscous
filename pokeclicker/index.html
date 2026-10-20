@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéClicker — Gotta Click 'Em All!</title>
+  <meta name="description" content="PokéClicker: a Pokémon-themed incremental clicker game. Click the Pokéball, buy auto-catchers, evolve your buildings, catch wild Pokémon and conquer the League." />
+  <link rel="icon" type="image/png" href="assets/sprites/items/poke-ball.png" />
+
+  <!-- Tailwind CSS (Play CDN — watches DOM, so JS-injected classes work too) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            poke: {
+              red: '#EE151F', darkred: '#B3121A', yellow: '#FFCB05',
+              blue: '#2A75BB', navy: '#0F2851', grass: '#7AC74C',
+            },
+          },
+          fontFamily: {
+            sans: ['"Trebuchet MS"', 'Verdana', 'Geneva', 'sans-serif'],
+          },
+          boxShadow: {
+            card: '0 10px 25px -5px rgba(15,40,81,0.18), 0 4px 10px -6px rgba(15,40,81,0.12)',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body class="min-h-screen font-sans text-slate-800 antialiased">
+  <div class="bg-decor" aria-hidden="true"></div>
+
+  <!-- ============================ HEADER ============================ -->
+  <header class="sticky top-0 z-40 bg-gradient-to-r from-poke-darkred via-poke-red to-poke-darkred text-white shadow-lg">
+    <div class="mx-auto max-w-[1440px] px-3 sm:px-5 py-2.5 flex items-center gap-3">
+      <img src="assets/sprites/items/poke-ball.png" alt="Pokéball"
+           class="pixel w-9 h-9 card-title-icon drop-shadow" />
+      <div class="leading-tight mr-auto">
+        <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide drop-shadow">
+          PokéClicker
+        </h1>
+        <p class="text-[0.7rem] sm:text-xs text-white/85">Gotta click 'em all! · a Cookie Clicker homage</p>
+      </div>
+      <span id="saveStatus" class="hidden sm:block text-[0.7rem] text-white/80 mr-1">Not saved yet</span>
+      <button id="saveBtn" type="button"
+        class="rounded-lg bg-poke-yellow text-poke-navy font-bold text-xs sm:text-sm px-3 py-1.5 shadow
+               hover:brightness-110 active:scale-95 transition"
+        style="touch-action: manipulation;">Save</button>
+      <button id="resetBtn" type="button"
+        class="rounded-lg border-2 border-white/70 text-white font-bold text-xs sm:text-sm px-3 py-1.5
+               hover:bg-white/15 active:scale-95 transition"
+        style="touch-action: manipulation;">Reset</button>
+    </div>
+  </header>
+
+  <!-- ============================ MAIN GRID ============================ -->
+  <main class="mx-auto max-w-[1440px] p-3 sm:p-5 grid gap-5 grid-cols-1 lg:grid-cols-[1fr_0.95fr_1.05fr] items-start">
+
+    <!-- ===================== LEFT: THE CORE ARENA ===================== -->
+    <section class="order-1 lg:sticky lg:top-24">
+      <div id="arena"
+           class="relative overflow-hidden rounded-2xl border border-white/70 bg-white/85 backdrop-blur
+                  shadow-card p-5 sm:p-6 text-center no-select">
+
+        <div class="flex items-center justify-center gap-2 mb-1">
+          <h2 class="text-lg font-extrabold text-poke-navy">Click the Pokéball!</h2>
+          <span class="rounded-full bg-poke-blue/10 border border-poke-blue/30 text-poke-blue
+                       text-xs font-bold px-2.5 py-0.5">
+            +$<span id="statPerClick">1</span> / click
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 mb-4">
+          A wild Pokémon appears every 100 clicks · 4% chance of a CRITICAL ×7 hit
+        </p>
+
+        <!-- The Big Pokéball (pure SVG so it stays crisp at any size) -->
+        <div class="mx-auto w-60 h-60 sm:w-72 sm:h-72 grid place-items-center">
+          <div id="ballShake" class="w-full h-full grid place-items-center">
+            <div id="ballScale" class="bob w-[92%] h-[92%]">
+              <button id="ballBtn" type="button" aria-label="Pokéball — click to earn PokéDollars"
+                class="w-full h-full rounded-full bg-transparent border-0 p-0 cursor-pointer
+                       transition-[filter] hover:drop-shadow-[0_0_28px_rgba(238,21,31,0.45)]
+                       focus:outline-none focus-visible:ring-4 focus-visible:ring-poke-yellow"
+                style="touch-action: manipulation;">
+                <svg viewBox="0 0 200 200" class="w-full h-full drop-shadow-xl" aria-hidden="true">
+                  <defs>
+                    <clipPath id="ballClip"><circle cx="100" cy="100" r="96" /></clipPath>
+                    <radialGradient id="ballTop" cx="0.35" cy="0.28" r="0.95">
+                      <stop offset="0%"  stop-color="#ff7a7a" />
+                      <stop offset="55%" stop-color="#EE151F" />
+                      <stop offset="100%" stop-color="#a50f17" />
+                    </radialGradient>
+                    <linearGradient id="ballBottom" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"  stop-color="#ffffff" />
+                      <stop offset="100%" stop-color="#cfd9e6" />
+                    </linearGradient>
+                  </defs>
+                  <g clip-path="url(#ballClip)">
+                    <rect x="0" y="0"   width="200" height="100" fill="url(#ballTop)" />
+                    <rect x="0" y="100" width="200" height="100" fill="url(#ballBottom)" />
+                    <rect x="0" y="86"  width="200" height="28"  fill="#1f2937" />
+                  </g>
+                  <circle cx="100" cy="100" r="95" fill="none" stroke="#1f2937" stroke-width="7" />
+                  <circle cx="100" cy="100" r="31" fill="#1f2937" />
+                  <circle cx="100" cy="100" r="21" fill="#f8fafc" stroke="#94a3b8" stroke-width="2" />
+                  <circle cx="100" cy="100" r="9"  fill="#e2e8f0" />
+                  <ellipse cx="68" cy="50" rx="30" ry="14" fill="#ffffff" opacity="0.38"
+                           transform="rotate(-26 68 50)" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Catch progress -->
+        <div class="mt-5 text-left">
+          <div class="flex items-center justify-between text-xs font-semibold text-poke-navy mb-1">
+            <span class="flex items-center gap-1.5">
+              <img src="assets/sprites/items/great-ball.png" alt="" class="pixel w-4 h-4" />
+              Tall grass radar
+            </span>
+            <span id="catchProgressText">0 / 100 clicks to the next wild encounter</span>
+          </div>
+          <div class="h-3.5 rounded-full bg-poke-grass/20 border border-poke-grass/50 overflow-hidden">
+            <div id="catchProgressFill"
+                 class="h-full w-0 rounded-full bg-gradient-to-r from-poke-grass to-poke-blue transition-[width] duration-150"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== MIDDLE: STATUS & ACHIEVEMENTS ===================== -->
+    <section class="order-2 flex flex-col gap-5">
+
+      <!-- Big stats -->
+      <div class="rounded-2xl border border-white/70 bg-white/85 backdrop-blur shadow-card p-5 text-center">
+        <p class="text-xs font-bold uppercase tracking-widest text-slate-500">PokéDollars</p>
+        <p class="text-4xl sm:text-5xl font-extrabold text-poke-navy tabular-nums leading-tight">
+          $<span id="statBalance">0</span>
+        </p>
+        <div class="mt-2 flex items-center justify-center gap-2 flex-wrap">
+          <span class="rounded-full bg-poke-red/10 border border-poke-red/30 text-poke-red
+                       font-bold text-sm px-3 py-0.5">⚡ $<span id="statDps">0</span> / sec</span>
+        </div>
+
+        <dl class="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2 text-left">
+          <div class="rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1.5">
+            <dt class="text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Lifetime earned</dt>
+            <dd class="font-bold text-poke-navy tabular-nums">$<span id="statLifetime">0</span></dd>
+          </div>
+          <div class="rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1.5">
+            <dt class="text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Total clicks</dt>
+            <dd class="font-bold text-poke-navy tabular-nums" id="statClicks">0</dd>
+          </div>
+          <div class="rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1.5">
+            <dt class="text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Pokémon caught</dt>
+            <dd class="font-bold text-poke-navy tabular-nums" id="statCaught">0</dd>
+          </div>
+          <div class="rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1.5">
+            <dt class="text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Playtime</dt>
+            <dd class="font-bold text-poke-navy tabular-nums" id="statPlaytime">0s</dd>
+          </div>
+          <div class="rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1.5">
+            <dt class="text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Gym Badges</dt>
+            <dd class="font-bold text-poke-navy tabular-nums" id="statBadges">—</dd>
+          </div>
+          <div class="rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1.5">
+            <dt class="text-[0.6rem] font-bold uppercase tracking-wide text-slate-500">Autosave</dt>
+            <dd class="font-bold text-poke-navy">every 10s</dd>
+          </div>
+        </dl>
+      </div>
+
+      <!-- News ticker -->
+      <div class="rounded-2xl border border-white/70 bg-white/85 backdrop-blur shadow-card p-4">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-poke-red opacity-60"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-poke-red"></span>
+          </span>
+          <h3 class="text-sm font-extrabold text-poke-navy uppercase tracking-wide">Poké News Network</h3>
+          <span class="text-[0.62rem] text-slate-400 ml-auto">updates every 15s</span>
+        </div>
+        <p id="newsTicker" class="text-sm leading-snug text-slate-600 min-h-[2.6rem]">…</p>
+      </div>
+
+      <!-- Prestige -->
+      <div class="rounded-2xl border border-white/70 bg-white/85 backdrop-blur shadow-card p-4">
+        <div class="flex items-center gap-2.5">
+          <img src="assets/sprites/items/master-ball.png" alt="" class="pixel w-9 h-9" />
+          <div class="min-w-0 flex-1">
+            <h3 class="text-sm font-extrabold text-poke-navy uppercase tracking-wide">Pokémon League</h3>
+            <p id="prestigeNext" class="text-[0.62rem] text-slate-400">
+              Each Gym Badge gives a permanent +5% income bonus.
+            </p>
+          </div>
+        </div>
+        <p id="prestigeInfo" class="text-sm text-slate-600 mt-2">Earn PokéDollars to qualify…</p>
+        <button id="prestigeBtn" type="button" disabled
+          class="mt-2.5 w-full rounded-xl bg-gradient-to-r from-poke-blue to-poke-navy text-white font-extrabold
+                 py-2.5 shadow transition enabled:hover:brightness-110 enabled:active:scale-[0.98]
+                 disabled:opacity-50 disabled:cursor-not-allowed"
+          style="touch-action: manipulation;">
+          Challenge the Pokémon League
+        </button>
+      </div>
+
+      <!-- Achievements -->
+      <div class="rounded-2xl border border-white/70 bg-white/85 backdrop-blur shadow-card p-4">
+        <h3 class="text-sm font-extrabold text-poke-navy uppercase tracking-wide mb-2.5">Achievements</h3>
+        <div id="achGrid" class="grid grid-cols-4 gap-2.5"></div>
+      </div>
+
+      <!-- PC Box -->
+      <div class="rounded-2xl border border-white/70 bg-white/85 backdrop-blur shadow-card p-4">
+        <h3 class="text-sm font-extrabold text-poke-navy uppercase tracking-wide">PC Box</h3>
+        <p id="pcEmpty" class="mt-1.5 text-xs text-slate-500">
+          No Pokémon yet — keep clicking! A wild Pokémon is caught every 100 clicks.
+        </p>
+        <div id="pcBox" class="mt-2.5 grid grid-cols-4 sm:grid-cols-5 gap-2 nice-scroll"></div>
+      </div>
+    </section>
+
+    <!-- ===================== RIGHT: THE SHOP ===================== -->
+    <section class="order-3">
+      <div id="shopCard"
+           class="rounded-2xl border border-white/70 bg-white/85 backdrop-blur shadow-card p-4 sm:p-5">
+        <div class="flex items-center gap-2.5 mb-1">
+          <img src="assets/sprites/items/ultra-ball.png" alt="" class="pixel w-8 h-8" />
+          <h2 class="text-lg font-extrabold text-poke-navy">Poké Mart</h2>
+          <span class="ml-auto text-xs font-bold text-slate-500 tabular-nums">
+            Balance: <span class="text-poke-red">$<span id="shopBalance">0</span></span>
+          </span>
+        </div>
+        <p class="text-[0.7rem] text-slate-400 mb-3">
+          Prices grow ×1.15 with every unit owned · silhouettes reveal at 60% of cost
+        </p>
+
+        <div id="shopBuildings" class="flex flex-col gap-2"></div>
+
+        <div class="flex items-center gap-2.5 my-4">
+          <span class="h-px flex-1 bg-slate-300/70"></span>
+          <img src="assets/sprites/items/fire-stone.png" alt="" class="pixel w-5 h-5" />
+          <h3 class="text-sm font-extrabold text-poke-navy uppercase tracking-wide">Evolution Items</h3>
+          <span class="h-px flex-1 bg-slate-300/70"></span>
+        </div>
+
+        <div id="shopItems" class="flex flex-col gap-2"></div>
+
+        <p class="mt-4 text-[0.65rem] leading-snug text-slate-400">
+          Evolution Items are one-time purchases that evolve (double) the output of their
+          matching building. The Amulet Coin doubles your manual clicks instead.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================ FOOTER ============================ -->
+  <footer class="mx-auto max-w-[1440px] px-5 pb-6 pt-1 text-center text-[0.68rem] text-poke-navy/60">
+    Fan-made homage. Sprites from the
+    <a class="underline hover:text-poke-blue" href="https://github.com/PokeAPI/sprites" target="_blank" rel="noopener">PokeAPI sprites repository</a>.
+    Pokémon © Nintendo / Creatures Inc. / GAME FREAK inc. This site is not affiliated with or endorsed by them.
+  </footer>
+
+  <!-- Toast stack -->
+  <div id="toasts"
+       class="fixed z-50 bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0
+              flex flex-col gap-2 items-center sm:items-end pointer-events-none"></div>
+
+  <noscript>
+    <div style="position:fixed;inset:0;background:#0F2851;color:#fff;display:flex;align-items:center;
+                justify-content:center;font-family:sans-serif;text-align:center;padding:2rem;">
+      PokéClicker needs JavaScript to run — please enable it and reload.
+    </div>
+  </noscript>
+
+  <script src="js/data.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

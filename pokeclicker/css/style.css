@@ -1,0 +1,237 @@
+/* ============================================================================
+ * PokéClicker — custom styles on top of Tailwind (animations, popups, etc.)
+ * ========================================================================== */
+
+/* --- Page backdrop ------------------------------------------------------- */
+.bg-decor {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(600px 320px at 85% -5%, rgba(255, 203, 5, 0.35), transparent 60%),
+    radial-gradient(700px 420px at -10% 20%, rgba(42, 117, 187, 0.28), transparent 60%),
+    radial-gradient(900px 500px at 110% 95%, rgba(122, 199, 76, 0.30), transparent 62%),
+    linear-gradient(180deg, #a6d9f7 0%, #cfecfb 45%, #d9f2c8 100%);
+}
+.bg-decor::after {
+  /* faint polka-dot texture */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(15, 40, 81, 0.06) 1.5px, transparent 1.5px);
+  background-size: 26px 26px;
+}
+
+/* --- Pixel-art sprite rendering ------------------------------------------ */
+.pixel {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* --- Floating "+$" click popups ------------------------------------------ */
+.click-popup {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-family: 'Trebuchet MS', Verdana, sans-serif;
+  font-weight: 800;
+  font-size: 1.35rem;
+  color: #fffbea;
+  text-shadow:
+    -1px -1px 0 #0f2851, 1px -1px 0 #0f2851,
+    -1px  1px 0 #0f2851, 1px  1px 0 #0f2851,
+     0    3px 6px rgba(15, 40, 81, 0.45);
+  animation: float-up 1s ease-out forwards;
+  white-space: nowrap;
+}
+.click-popup.crit {
+  font-size: 1.9rem;
+  color: #ffd94d;
+  text-shadow:
+    -1px -1px 0 #7c2d12, 1px -1px 0 #7c2d12,
+    -1px  1px 0 #7c2d12, 1px  1px 0 #7c2d12,
+     0    4px 10px rgba(124, 45, 18, 0.55);
+}
+@keyframes float-up {
+  0%   { opacity: 1; transform: translate(-50%, -50%) translateX(0)        scale(1); }
+  15%  { transform: translate(-50%, -50%) translateX(calc(var(--dx, 0px) * 0.3)) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateX(var(--dx, 0px)) translateY(-110px) scale(0.9); }
+}
+
+/* --- Pokéball idle bob (applied to a dedicated wrapper so Web Animations
+       played by JS on inner elements never fight this transform) ----------- */
+.bob {
+  animation: bob 3.6s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-9px); }
+}
+
+/* --- News ticker fade ------------------------------------------------------ */
+#newsTicker {
+  transition: opacity 0.28s ease-in-out, transform 0.28s ease-in-out;
+}
+#newsTicker.news-fade-out {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* --- Toasts --------------------------------------------------------------- */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 22rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.9rem;
+  font-family: 'Trebuchet MS', Verdana, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  color: #0f2851;
+  background: rgba(255, 255, 255, 0.96);
+  border: 2px solid #0f2851;
+  box-shadow: 0 10px 24px -8px rgba(15, 40, 81, 0.4);
+  opacity: 0;
+  transform: translateY(10px) scale(0.97);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast img { width: 34px; height: 34px; flex: none; }
+.toast-in  { opacity: 1; transform: translateY(0)    scale(1); }
+.toast-out { opacity: 0; transform: translateY(-8px) scale(0.97); }
+.toast-common    { border-color: #64748b; }
+.toast-uncommon  { border-color: #16a34a; }
+.toast-rare      { border-color: #2a75bb; }
+.toast-legendary {
+  border-color: #b8860b;
+  background: linear-gradient(135deg, #fff8dc, #ffe9a8);
+  box-shadow: 0 10px 26px -6px rgba(184, 134, 11, 0.55);
+}
+.toast-info { border-color: #0f2851; }
+
+/* --- Shop rows ------------------------------------------------------------ */
+.shop-row .icon-img {
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.shop-row:not(:disabled):hover .icon-img {
+  transform: scale(1.14) rotate(-4deg);
+}
+.shop-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: saturate(0.35);
+}
+.shop-row.affordable {
+  border-color: rgba(22, 163, 74, 0.55);
+}
+.shop-row.affordable:not(:disabled):hover {
+  background: #f0fdf4;
+}
+
+/* Locked (not yet revealed) shop entries — silhouettes */
+.shop-row.locked .icon-img {
+  filter: brightness(0) blur(2px);
+  opacity: 0.65;
+}
+.shop-row.locked {
+  border-style: dashed;
+}
+
+/* Owned evolution items */
+.shop-row.owned {
+  background: rgba(255, 203, 5, 0.12);
+  border-color: rgba(184, 134, 11, 0.5);
+  cursor: default;
+}
+
+/* Purchase flash feedback */
+.row-flash {
+  animation: row-flash 0.5s ease-out;
+}
+@keyframes row-flash {
+  0%   { background-color: rgba(255, 203, 5, 0.65); }
+  100% { background-color: transparent; }
+}
+
+/* Affordable cost chip pulse (subtle) */
+.chip-afford {
+  animation: chip-glow 2.2s ease-in-out infinite;
+}
+@keyframes chip-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(238, 21, 31, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(238, 21, 31, 0.16); }
+}
+
+/* --- PC Box cells --------------------------------------------------------- */
+.pc-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 2px 4px;
+  border-radius: 0.6rem;
+  background: rgba(42, 117, 187, 0.06);
+  border: 1px solid rgba(42, 117, 187, 0.18);
+}
+.pc-cell.legendary {
+  border-color: rgba(184, 134, 11, 0.7);
+  background: linear-gradient(135deg, rgba(255, 248, 220, 0.9), rgba(255, 233, 168, 0.75));
+}
+.pc-cell .pc-count {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 1.4rem;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #0f2851;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.15rem;
+}
+.pc-cell.pop-in {
+  animation: pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes pop-in {
+  0%   { transform: scale(0.2); opacity: 0; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+/* --- Achievement tiles ---------------------------------------------------- */
+.ach-tile {
+  filter: grayscale(1);
+  opacity: 0.45;
+  transition: filter 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+}
+.ach-tile.unlocked {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.02);
+}
+.ach-tile.unlocked .ach-ring {
+  border-color: #ffcb05;
+  background: radial-gradient(circle at 30% 30%, #fff8dc, #ffe9a8);
+}
+
+/* --- Misc ----------------------------------------------------------------- */
+.card-title-icon { filter: drop-shadow(0 2px 2px rgba(15, 40, 81, 0.35)); }
+
+/* thin scrollbars where lists overflow */
+.nice-scroll::-webkit-scrollbar { width: 8px; }
+.nice-scroll::-webkit-scrollbar-thumb {
+  background: rgba(15, 40, 81, 0.25);
+  border-radius: 999px;
+}
+.nice-scroll { scrollbar-width: thin; scrollbar-color: rgba(15, 40, 81, 0.25) transparent; }
+
+/* prevent accidental selection while rapid-tapping */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
